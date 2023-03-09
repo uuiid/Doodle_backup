@@ -11,6 +11,7 @@ class UDoodleCreateCharacterConfig;
 class ITableRow;
 class STableViewBase;
 
+
 class UCreateCharacterMianTreeItem {
  public:
   FString Name;
@@ -18,6 +19,7 @@ class UCreateCharacterMianTreeItem {
   FDoodleCreateCharacterConfigNode* Item;
 
   TArray<TSharedPtr<UCreateCharacterMianTreeItem>> Childs;
+
 };
 
 class SCreateCharacterTree : public STreeView<TSharedPtr<UCreateCharacterMianTreeItem>> {
@@ -46,9 +48,7 @@ class SCreateCharacterTree : public STreeView<TSharedPtr<UCreateCharacterMianTre
   void CreateCharacterConfigTreeData_GetChildren(TreeVirwWeightItemType In_Value, TreeVirwWeightDataType& In_List);
   TSharedPtr<SWidget> Create_ContextMenuOpening();
   void On_SelectionChanged(TreeVirwWeightItemType TreeItem, ESelectInfo::Type SelectInfo);
-
   void CreateUITree();
-
   void AddBone();
   // 数据
   TreeVirwWeightDataType CreateCharacterConfigTreeData{};
@@ -61,4 +61,5 @@ class SCreateCharacterTree : public STreeView<TSharedPtr<UCreateCharacterMianTre
   // 上下文ui元素
   TSharedPtr<FUICommandList> UICommandList;
   TSharedPtr<FExtender> Extender;
+ 
 };

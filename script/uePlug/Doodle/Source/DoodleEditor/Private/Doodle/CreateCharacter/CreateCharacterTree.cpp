@@ -17,10 +17,21 @@ class SCreateCharacterConfigTreeItem : public SMultiColumnTableRow<SCreateCharac
 
   SLATE_END_ARGS()
 
+ //修改滑条的委托
+  DECLARE_DELEGATE_OneParam(FChangeVolume, const float)
+
+ //委托变量
+ FChangeVolume ChangeVolume;
+
   // 这里是内容创建函数
   void Construct(const FArguments& Arg, const TSharedRef<STableViewBase>& OwnerTableView) {
     ItemData = Arg._ItemData;
     Super::Construct(Super::FArguments{}, OwnerTableView);
+  }
+
+  void On_SliderValueChanged(float value) {
+  //修改值
+    ChangeVolume.ExecuteIfBound(value);
   }
 
   TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override {
@@ -34,7 +45,7 @@ class SCreateCharacterConfigTreeItem : public SMultiColumnTableRow<SCreateCharac
       if (InColumnName == "Name") {
         L_Box->AddSlot().AutoWidth()[SNew(STextBlock).Text(FText::FromString(ItemData->Name))];
       } else if (InColumnName == "Value") {
-        L_Box->AddSlot().AutoWidth()[SNew(SSlider).MaxValue(ItemData->Item->MaxValue).MinValue(ItemData->Item->MinValue)];
+        L_Box->AddSlot().AutoWidth()[SNew(SSlider).MaxValue(ItemData->Item->MaxValue).MinValue(ItemData->Item->MinValue).OnValueChanged(FOnFloatValueChanged::CreateSP(this,&SCreateCharacterConfigTreeItem::On_SliderValueChanged))];
       }
     }
     return L_Box.ToSharedRef();
@@ -82,6 +93,7 @@ void SCreateCharacterTree::Construct(const FArguments& Arg) {
                        )
                        .OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SCreateCharacterTree::Create_ContextMenuOpening))
                        .OnSelectionChanged(TreeVirwWeightType::FOnSelectionChanged::CreateSP(this, &SCreateCharacterTree::On_SelectionChanged))
+                       
   );
 }
 
