@@ -1,1 +1,1 @@
-mklink /J D:\UE5project\doodle_plug_dev_4.27\Plugins\Doodle %~dp0\Doodle
+mklink /J F:\doodle_plug_dev_4.27\Plugins\Doodle %~dp0\Doodle
