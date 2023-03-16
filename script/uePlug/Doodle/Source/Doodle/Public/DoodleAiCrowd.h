@@ -34,6 +34,9 @@ class DOODLE_API ADoodleAiCrowd : public ACharacter {
   UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Doodle", DisplayName = "Org")
   FVector Direction;
 
+  UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Doodle", DisplayName = "Random_Radius")
+  float Radius;
+
  private:
   FVector p_Point;
 };
