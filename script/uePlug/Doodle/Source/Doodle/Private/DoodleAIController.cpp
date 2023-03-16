@@ -29,8 +29,15 @@ void ADoodleAIController::BeginPlay() {
 
 void ADoodleAIController::GoToRandomWaypoint() {
   FVector Result;
-  GetRandomPointInRadius(GetPawn()->GetActorLocation(), 600, Result);
-  if (true) {
+  FVector In_Origin = GetPawn()->GetActorLocation();
+  float Radius{600};
+  ADoodleAiCrowd *DoodleCurveCrowd = Cast<ADoodleAiCrowd>(GetPawn());
+  if (DoodleCurveCrowd) {
+    In_Origin += DoodleCurveCrowd->Direction;
+    Radius = DoodleCurveCrowd->Radius;
+  }
+
+  if (GetRandomPointInRadius(In_Origin, Radius, Result)) {
     FAIMoveRequest AIMoveRequest{Result};
     AIMoveRequest.SetAcceptanceRadius(50);
     AIMoveRequest.SetAllowPartialPath(true);
@@ -49,14 +56,10 @@ bool ADoodleAIController::GetRandomPointInRadius(const FVector &Origin, float Ra
   }
 
   FNavLocation Result;
-  bool bSuccess                    = NavSys->GetRandomReachablePointInRadius(Origin, 600, Result);
+  bool bSuccess = NavSys->GetRandomReachablePointInRadius(Origin, Radius, Result);
 
   // Out
-  OutResult                        = Result;
-  ADoodleAiCrowd *DoodleCurveCrowd = Cast<ADoodleAiCrowd>(GetPawn());
-  if (DoodleCurveCrowd) {
-    OutResult += DoodleCurveCrowd->Direction;
-  }
+  OutResult     = Result;
 
   return bSuccess;
 }
