@@ -18,15 +18,13 @@ class assets_file_widgets;
  * @note 每次上传文件都会递增版本号， 如果需要新的条目请创建新条目
  *
  */
-class DOODLELIB_API assets_file_widgets : public base_windows<dear::Begin, assets_file_widgets> {
+class DOODLELIB_API assets_file_widgets {
   class impl;
   std::unique_ptr<impl> p_i;
 
   void render_context_menu(const entt::handle& in_);
   void render_by_icon();
-  void render_by_icon(std::size_t in_index);
   void render_by_info();
-  void render_by_info(std::size_t in_index);
   void switch_rander();
   void generate_lists(const std::vector<entt::handle>& in_list);
 
@@ -35,13 +33,13 @@ class DOODLELIB_API assets_file_widgets : public base_windows<dear::Begin, asset
 
  public:
   assets_file_widgets();
-  ~assets_file_widgets() override;
+  ~assets_file_widgets();
 
   constexpr static std::string_view name{gui::config::menu_w::assets_file};
 
   void init();
-  void render();
-  const std::string& title() const override;
+  bool render();
+  const std::string& title() const;
 };
 
 }  // namespace doodle::gui

@@ -350,15 +350,6 @@ struct TreeNodeEx : public ScopeWrapper<TreeNodeEx> {
   };
 };
 
-struct OpenPopup : public ScopeWrapper<OpenPopup> {
-  template <class... Args>
-  OpenPopup(Args&&... in_args) noexcept : ScopeWrapper<OpenPopup>(true) {
-    ::ImGui::OpenPopup(std::forward<Args>(in_args)...);
-  }
-
-  static void dtor() noexcept { ImGui::EndPopup(); };
-};
-
 struct TextWrapPos : public ScopeWrapper<TextWrapPos, true> {
   TextWrapPos(float wrap_pos_x) : ScopeWrapper<TextWrapPos, true>(true) { ImGui::PushTextWrapPos(wrap_pos_x); }
   static void dtor() noexcept { ImGui::PopTextWrapPos(); };
@@ -403,6 +394,14 @@ struct DragDropTarget : public ScopeWrapper<DragDropTarget> {
   DragDropTarget() : ScopeWrapper<DragDropTarget>(ImGui::BeginDragDropTarget()) {}
   static void dtor() noexcept { ImGui::EndDragDropTarget(); }
 };
+
+struct DragDropTargetCustom : public ScopeWrapper<DragDropTargetCustom> {
+ public:
+  DragDropTargetCustom(const ImRect& bb, ImGuiID id)
+      : ScopeWrapper<DragDropTargetCustom>(ImGui::BeginDragDropTargetCustom(bb, id)) {}
+  static void dtor() noexcept { ImGui::EndDragDropTarget(); }
+};
+
 struct ItemWidth : public ScopeWrapper<ItemWidth, true> {
  public:
   explicit ItemWidth(std::float_t in_width) : ScopeWrapper(true) { ImGui::PushItemWidth(in_width); }

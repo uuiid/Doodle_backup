@@ -10,6 +10,7 @@
 #include <doodle_core/metadata/image_icon.h>
 #include <doodle_core/metadata/metadata_cpp.h>
 
+#include "doodle_app/gui/base/base_window.h"
 #include <doodle_app/gui/base/ref_base.h>
 #include <doodle_app/lib_warp/imgui_warp.h>
 
@@ -17,7 +18,11 @@
 #include <doodle_lib/gui/widgets/screenshot_widget.h>
 #include <doodle_lib/long_task/image_load_task.h>
 
+#include "create_entry.h"
+#include "entt/entity/fwd.hpp"
+#include "imgui.h"
 #include <memory>
+#include <vector>
 
 namespace doodle::gui {
 
@@ -34,6 +39,7 @@ class assets_file_widgets::impl {
 
   std::vector<boost::signals2::scoped_connection> p_sc;
   std::vector<entt::handle> handle_list;
+  bool open{true};
 
   class image_data {
    public:
@@ -170,7 +176,7 @@ class assets_file_widgets::impl {
   bool render_icon{true};
 
   std::function<void()> render_list;
-  entt::observer observer_h{*g_reg(), entt::collector.update<database>()};
+  //  entt::observer observer_h{*g_reg(), entt::collector.update<database>()};
   std::string title_name_;
 };
 
@@ -178,6 +184,7 @@ assets_file_widgets::assets_file_widgets() : p_i(std::make_unique<impl>()) {
   p_i->title_name_ = std::string{name};
   g_reg()->ctx().emplace<image_load_task>();
   this->switch_rander();
+  init();
 }
 
 void assets_file_widgets::switch_rander() {
@@ -204,14 +211,31 @@ void assets_file_widgets::init() {
   //  p_i->observer_h.connect();
 }
 
-void assets_file_widgets::render() {
+bool assets_file_widgets::render() {
   /// 渲染数据
-
   const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-  dear::Child{"ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false} && [&]() {
-    if (p_i->lists.empty()) return;
-    p_i->render_list();
-  };
+  auto* l_win_main                     = ImGui::GetCurrentWindow();
+  if (auto l_drag = dear::DragDropTargetCustom{l_win_main->ContentRegionRect, l_win_main->ID}) {
+    if (const auto* l_data = ImGui::AcceptDragDropPayload(doodle::doodle_config::drop_imgui_id.data());
+        l_data && l_data->IsDelivery()) {
+      auto* l_list = static_cast<std::vector<FSys::path>*>(l_data->Data);
+      g_windows_manage().create_windows_arg(
+          windows_init_arg{}
+              .create<create_entry>(create_entry::init_args{}.set_paths(*l_list).set_create_call(
+                  [this](const std::vector<entt::handle>& in_handle) {}
+              ))
+              .set_render_type<dear::Popup>()
+      );
+    }
+  }
+
+  {
+    dear::Child l_win{"ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false};
+    l_win&& [&]() {
+      if (p_i->lists.empty()) return;
+      p_i->render_list();
+    };
+  }
 
   if (ImGui::Button(ICON_FA_ATOM)) {
     p_i->render_icon = !p_i->render_icon;
@@ -219,6 +243,8 @@ void assets_file_widgets::render() {
     switch_rander();
   }
   g_reg()->ctx().at<status_info>().show_size = p_i->lists.size();
+
+  return p_i->open;
 }
 
 void assets_file_widgets::render_context_menu(const entt::handle& in_) {
@@ -227,9 +253,9 @@ void assets_file_widgets::render_context_menu(const entt::handle& in_) {
     FSys::open_explorer(FSys::is_directory(k_path) ? k_path : k_path.parent_path());
   }
   if (dear::MenuItem("截图")) {
-    auto l_image = std::make_shared<screenshot_widget>();
-    l_image->async_save_image(in_, [](const entt::handle& in) { database::save(in); });
-    make_handle().emplace<gui_windows>(l_image);
+    g_windows_manage().create_windows_arg(
+        windows_init_arg{}.create<screenshot_widget>(in_).set_render_type<dear::Popup>()
+    );
   }
   ImGui::Separator();
   if (dear::MenuItem("删除")) {
@@ -347,7 +373,6 @@ void assets_file_widgets::render_by_icon() {
     }
   }
 }
-void assets_file_widgets::render_by_icon(std::size_t in_index) {}
 void assets_file_widgets::render_by_info() {
   const static auto l_size{8u};
 
@@ -406,7 +431,6 @@ void assets_file_widgets::render_by_info() {
     }
   };
 }
-void assets_file_widgets::render_by_info(std::size_t in_index) {}
 void assets_file_widgets::generate_lists(const std::vector<entt::handle>& in_list) {
   if (p_i->render_icon)
     p_i->lists = in_list | ranges::views::transform([](const entt::handle& in) -> impl::base_data_ptr {
@@ -421,6 +445,8 @@ void assets_file_widgets::generate_lists(const std::vector<entt::handle>& in_lis
 }
 
 const std::string& assets_file_widgets::title() const { return p_i->title_name_; }
-assets_file_widgets::~assets_file_widgets() { p_i->observer_h.disconnect(); }
+
+assets_file_widgets::~assets_file_widgets() { /*p_i->observer_h.disconnect();*/
+}
 
 }  // namespace doodle::gui

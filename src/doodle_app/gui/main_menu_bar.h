@@ -23,17 +23,17 @@ class layout_data {
   bool operator!=(const std::string& in_rhs) const;
 };
 }  // namespace main_menu_bar_ns
-class DOODLE_APP_API main_menu_bar : public detail::windows_tick_interface {
+class DOODLE_APP_API main_menu_bar {
  private:
   class impl;
   std::unique_ptr<impl> p_i;
-  void menu_layout();
 
  protected:
   virtual void menu_file();
   virtual void menu_edit();
-  virtual void menu_windows() = 0;
-  virtual void menu_tool()    = 0;
+  void menu_windows();
+  virtual void menu_tool() = 0;
+  virtual void menu_layout();
 
  public:
  public:
@@ -45,6 +45,6 @@ class DOODLE_APP_API main_menu_bar : public detail::windows_tick_interface {
   main_menu_bar& operator=(const main_menu_bar& in) noexcept;
   main_menu_bar& operator=(main_menu_bar&& in) noexcept;
 
-  bool tick();
+  bool render();
 };
 }  // namespace doodle::gui

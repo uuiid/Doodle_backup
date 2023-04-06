@@ -5,6 +5,7 @@
 #include "maya_plug_app.h"
 
 #include "doodle_core/doodle_core_fwd.h"
+#include "doodle_core/gui_template/show_windows.h"
 #include <doodle_core/core/core_set.h>
 
 #include <doodle_app/gui/main_menu_bar.h>
@@ -21,9 +22,15 @@
 
 namespace doodle::maya_plug {
 void maya_facet::load_windows() {
-  make_handle().emplace<gui::gui_tick>(std::make_shared<maya_layout>());
-  make_handle().emplace<gui::gui_tick>(std::make_shared<maya_menu>());
-  make_handle().emplace<gui::gui_tick>(std::make_shared<gui::main_status_bar>());
+  gui::g_windows_manage().set_layout(gui::windows_layout{std::in_place_type<maya_layout>});
+  gui::g_windows_manage().create_windows_arg(
+      gui::windows_init_arg{}.create<maya_menu>().set_render_type<dear::MainMenuBar>()
+  );
+  gui::g_windows_manage().create_windows_arg(
+      gui::windows_init_arg{}.create<gui::main_status_bar>().set_render_type<dear::ViewportSideBar>(
+          nullptr, ImGuiDir_Down
+      )
+  );
   boost::asio::post(g_io_context(), [this]() { close_windows(); });
 }
 void maya_facet::close_windows() { ::ShowWindow(p_hwnd, SW_HIDE); }
