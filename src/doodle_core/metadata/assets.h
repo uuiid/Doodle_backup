@@ -4,9 +4,8 @@
 
 #pragma once
 
+#include <doodle_core/core/init_register_macro.h>
 #include <doodle_core/doodle_core_fwd.h>
-
-#include <rttr/rttr_enable.h>
 
 namespace doodle {
 /**
@@ -22,8 +21,9 @@ class DOODLE_CORE_API assets {
    */
   void set_path_component();
 
+  DOODLE_REGISTER_FRIEND();
+
   std::vector<std::string> p_component;
-  RTTR_ENABLE();
 
  public:
   /**
@@ -31,31 +31,6 @@ class DOODLE_CORE_API assets {
    *
    */
   FSys::path p_path;
-  /**
-   * @brief 使用函子设置文件标签
-   *
-   */
-  class DOODLE_CORE_API set_path_fun {
-   public:
-    /**
-     * @brief 路径组件的引用
-     *
-     */
-    std::vector<std::string>& p_comm;
-    /**
-     * @brief 初始化函数
-     *
-     * @param in_comm 路径标签
-     */
-    explicit set_path_fun(std::vector<std::string>& in_comm)
-        : p_comm(in_comm){};
-    /**
-     * @brief 函子调用
-     *
-     * @param in 资产
-     */
-    void operator()(assets& in) const;
-  };
 
   assets();
   /**
@@ -77,9 +52,7 @@ class DOODLE_CORE_API assets {
    *
    * @return const std::vector<std::string>&
    */
-  const std::vector<std::string>& get_path_component() {
-    return p_component;
-  };
+  const std::vector<std::string>& get_path_component() { return p_component; };
 
   /**
    * @brief 设置标签路径, 同时会分解路径
@@ -93,12 +66,6 @@ class DOODLE_CORE_API assets {
    * @return const FSys::path& p_path
    */
   [[nodiscard]] const FSys::path& get_path() const;
-  /**
-   * @brief 弃用
-   *
-   * @return std::string
-   */
-  [[deprecated("返回始终为空")]] std::string show_str() const;
 
   /**
    * @brief 排序类, 使用 p_paht 排序
@@ -132,9 +99,7 @@ class DOODLE_CORE_API assets {
    * @param j json
    * @param p 资产
    */
-  friend void to_json(nlohmann::json& j, const assets& p) {
-    j["path"] = p.p_path;
-  }
+  friend void to_json(nlohmann::json& j, const assets& p) { j["path"] = p.p_path; }
   /**
    * @copydoc to_json(nlohmann::json& j, const assets& p)
    */
@@ -162,10 +127,7 @@ struct formatter<::doodle::assets> : formatter<std::string_view> {
    */
   template <typename FormatContext>
   auto format(const ::doodle::assets& in_, FormatContext& ctx) const -> decltype(ctx.out()) {
-    return formatter<std::string_view>::format(
-        in_.p_path.generic_string(),
-        ctx
-    );
+    return formatter<std::string_view>::format(in_.p_path.generic_string(), ctx);
   }
 };
 }  // namespace fmt

@@ -2,7 +2,6 @@
 
 #include <doodle_core/database_task/details/tool.h>
 #include <doodle_core/database_task/sql_com.h>
-#include <doodle_core/generate/core/sql_sql.h>
 #include <doodle_core/logger/logger.h>
 
 #include <algorithm>
@@ -16,7 +15,6 @@
 #include <vector>
 
 namespace doodle::database_n {
-namespace sql = doodle_database;
 void sql_com<doodle::shot>::insert(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
   auto& l_conn   = *in_ptr;
   auto l_handles = in_id | ranges::views::transform([&](entt::entity in_entity) {
@@ -36,7 +34,7 @@ void sql_com<doodle::shot>::insert(conn_ptr& in_ptr, const std::vector<entt::ent
     l_pre.params.shot_ab   = l_shot.get_shot_ab();
     l_pre.params.entity_id = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
     auto l_r               = l_conn(l_pre);
-    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<shot>().get_name());
+    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), entt::type_id<shot>().name());
   }
 }
 
@@ -61,7 +59,7 @@ void sql_com<doodle::shot>::update(conn_ptr& in_ptr, const std::vector<entt::ent
     l_pre.params.entity_id = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
 
     auto l_r               = l_conn(l_pre);
-    DOODLE_LOG_INFO("更新数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<shot>().get_name());
+    DOODLE_LOG_INFO("更新数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), entt::type_id<shot>().name());
   }
 }
 void sql_com<doodle::shot>::select(conn_ptr& in_ptr, const std::map<std::int64_t, entt::entity>& in_handle) {
