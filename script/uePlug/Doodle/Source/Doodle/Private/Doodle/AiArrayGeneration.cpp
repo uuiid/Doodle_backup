@@ -146,7 +146,7 @@ void ADoodleAiArrayGeneration::GenPoint() {
       FVector L_RightVector = SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World);
       L_RightVector.Z       = L_Box_.Min.Z;
       L_RightVector.Normalize();
-      FVector L_Vector      = SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
+      FVector L_Vector = SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
       L_Vector.Normalize();
       if (FVector::DotProduct(L_Vector, L_RightVector) < 0.0) {
         FHitResult L_HitR{};
@@ -158,6 +158,7 @@ void ADoodleAiArrayGeneration::GenPoint() {
           FVector L_Point_Out{};
           // DrawDebugPoint(GetWorld(), L_HitR.ImpactPoint, 10.0f, FColor::Red, false, 1.0f);
           if (GetRandomPointInRadius(L_HitR.ImpactPoint, L_Point_Out)) {
+            L_Point_Out.Z += OffsetValue;
             FTransform L_Ftran{GetRandomOrient(L_Point_Out), L_Point_Out};
             Points.Add(L_Ftran);
 
