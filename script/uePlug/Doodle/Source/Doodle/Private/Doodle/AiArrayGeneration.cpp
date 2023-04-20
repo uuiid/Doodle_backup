@@ -99,14 +99,29 @@ void ADoodleAiArrayGeneration::BeginPlay() {
   if (AnimAssets.Num() == 0 || SkinAssets.Num() == 0)
     return;
 
-  int32 L_Max_Anim = FMath::Max(0, AnimAssets.Num() - 1);
   int32 L_Max_Skin = FMath::Max(0, SkinAssets.Num() - 1);
+  TMap<USkeleton*, TArray<UAnimationAsset*>> L_Map{};
+  for (auto&& i : AnimAssets) {
+    if (i && i->GetSkeleton()) {
+      if (auto L_Array = L_Map.Find(i->GetSkeleton())) {
+        L_Array->Add(i);
+      } else {
+        L_Map.Add(i->GetSkeleton(), TArray<UAnimationAsset*>{});
+      }
+    }
+  }
+
   for (auto&& i : Points) {
-    ASkeletalMeshActor* L_Actor      = GetWorld()->SpawnActor<ASkeletalMeshActor>(i.GetLocation(), i.GetRotation().Rotator());
+    ASkeletalMeshActor* L_Actor =
+        GetWorld()->SpawnActor<ASkeletalMeshActor>(i.GetLocation(), i.GetRotation().Rotator());
     // L_Actor->SetActorTransform(i);
-    UAnimationAsset* L_Anim          = AnimAssets[RandomStream_Anim.RandRange(0, L_Max_Anim)];
-    USkeletalMesh* L_Skin            = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
-    USkeletalMeshComponent* L_Sk_Com = L_Actor->GetSkeletalMeshComponent();
+    TObjectPtr L_Skin = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
+    auto L_Array      = L_Map.Find(L_Skin->GetSkeleton());
+    if (!L_Array) continue;
+    if (L_Array->IsEmpty()) continue;
+    TObjectPtr<UAnimationAsset> L_Anim = (*L_Array
+    )[RandomStream_Anim.RandRange(0, L_Array->Num() - 1)];  // AnimAssets[RandomStream_Anim.RandRange(0, L_Max_Anim)];
+    USkeletalMeshComponent* L_Sk_Com   = L_Actor->GetSkeletalMeshComponent();
     L_Sk_Com->SetSkeletalMesh(L_Skin);
     L_Sk_Com->PlayAnimation(L_Anim, true);
     // L_Sk_Com->LightingChannels = LightingChannels;
@@ -144,13 +159,13 @@ void ADoodleAiArrayGeneration::GenPoint() {
   // DrawDebugBox(GetWorld(), L_Box_.GetCenter(), L_Box_.GetExtent(), FColor::Red, false, 10.f);
   for (auto x = 0.0; x <= FMath::Clamp(Row, 1, 1000); ++x) {
     for (auto y = 0.0; y <= FMath::Clamp(Column, 1, 1000); ++y) {
-      FVector L_Point       = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
-      const float L_Param   = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
-      FVector2D L_RightVector_2D =
-          SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World);
+      FVector L_Point     = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
+      const float L_Param = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
+      FVector2D L_RightVector_2D{
+          SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World)};
       L_RightVector_2D.Normalize();
-      FVector2D L_Vector_2D =
-          SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
+      FVector2D L_Vector_2D{
+          SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point};
       L_Vector_2D.Normalize();
       if (FVector2D::DotProduct(L_Vector_2D, L_RightVector_2D) < 0.0) {
         FHitResult L_HitR{};
