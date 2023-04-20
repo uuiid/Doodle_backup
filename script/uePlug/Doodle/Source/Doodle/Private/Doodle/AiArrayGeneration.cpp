@@ -1,16 +1,16 @@
 #include "Doodle/AiArrayGeneration.h"
 
 #include "AI/NavigationSystemBase.h"
-#include "Components/SplineComponent.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "NavigationSystem.h"
-#include "Components/InstancedStaticMeshComponent.h"
-#include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimSingleNodeInstance.h"
-#include "UObject/ConstructorHelpers.h"
-#include "Materials/MaterialInstanceDynamic.h"
-
+#include "Animation/SkeletalMeshActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SplineComponent.h"
 #include "Doodle/DoodleEigenHelper.h"
+#include "DrawDebugHelpers.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NavigationSystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   PrimaryActorTick.bCanEverTick = true;
@@ -36,7 +36,9 @@ ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   SceneComponentTarget->SetupAttachment(RootComponent);
   SceneComponentTarget->SetRelativeLocation(FVector{200.0, 0.0, 0.0});
 
-  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(TEXT("/ControlRig/Controls/ControlRig_Sphere_3mm.ControlRig_Sphere_3mm"));
+  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(
+      TEXT("/Engine/VREditor/BasicMeshes/SM_Cube_01.SM_Cube_01")
+  );
 
   Target = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
   Target->SetupAttachment(SceneComponentTarget);
@@ -81,7 +83,8 @@ void ADoodleAiArrayGeneration::Tick(float DeltaTime) {
 
 void ADoodleAiArrayGeneration::PostActorCreated() {
   Super::PostActorCreated();
-  UMaterial* L_CraneBaseMaterial       = LoadObject<UMaterial>(this, TEXT("/ControlRig/Controls/ControlRigGizmoMaterial.ControlRigGizmoMaterial"));
+  UMaterial* L_CraneBaseMaterial =
+      LoadObject<UMaterial>(this, TEXT("/Engine/MapTemplates/Materials/BasicAsset01.BasicAsset01"));
   UMaterialInstanceDynamic* L_Material = UMaterialInstanceDynamic::Create(L_CraneBaseMaterial, this);
   L_Material->SetVectorParameterValue(TEXT("Color"), FColor::Red);
   Target->SetMaterial(0, L_Material);
@@ -126,7 +129,7 @@ void ADoodleAiArrayGeneration::GenPoint() {
   Preview_InstancedStaticMeshComponent->ClearInstances();
   Preview_InstancedStaticMeshComponent->SetStaticMesh(Preview_Mesh);
 
-  FBox L_Box_                  = SplineComponent->Bounds.TransformBy(GetTransform()).GetBox();
+  FBox L_Box_                  = SplineComponent->Bounds.GetBox();
   FVector L_Row_Step           = L_Box_.GetSize();
   float L_Row_Step_X           = L_Row_Step.X / FMath::Clamp((double)Row, 1.0, 1000.0);
   float L_Row_Step_Y           = L_Row_Step.Y / FMath::Clamp((double)Column, 1.0, 1000.0);
@@ -138,17 +141,22 @@ void ADoodleAiArrayGeneration::GenPoint() {
 
   // DrawDebugLine(GetWorld(), GetActorTransform().GetLocation(), GetActorTransform().GetLocation() + L_Vector * 50,
   // FColor::Red, false, 10.f);
-
+  // DrawDebugBox(GetWorld(), L_Box_.GetCenter(), L_Box_.GetExtent(), FColor::Red, false, 10.f);
   for (auto x = 0.0f; x <= FMath::Clamp(Row, 1, 1000); ++x) {
     for (auto y = 0.0f; y <= FMath::Clamp(Column, 1, 1000); ++y) {
       FVector L_Point       = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
       const float L_Param   = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
       FVector L_RightVector = SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World);
-      L_RightVector.Z       = L_Box_.Min.Z;
-      L_RightVector.Normalize();
+      FVector2D L_RightVector_2D{L_RightVector.X, L_RightVector.Y};
+      L_RightVector_2D.Normalize();
+
       FVector L_Vector = SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
-      L_Vector.Normalize();
-      if (FVector::DotProduct(L_Vector, L_RightVector) < 0.0) {
+      FVector2D L_Vector_2D{L_Vector.X, L_Vector.Y};
+      L_Vector_2D.Normalize();
+
+      // DrawDebugLine(GetWorld(), FVector{L_Vector_2D, 0}, FVector{L_RightVector_2D * 100, 0}, FColor::Red,
+      // false, 1.0f);
+      if (FVector2D::DotProduct(L_Vector_2D, L_RightVector_2D) < 0.0) {
         FHitResult L_HitR{};
         if (UKismetSystemLibrary::LineTraceSingleForObjects(
                 GetWorld(), L_Point + FVector{0, 0, 1000}, L_Point - FVector{0, 0, 1000},
@@ -162,7 +170,7 @@ void ADoodleAiArrayGeneration::GenPoint() {
             FTransform L_Ftran{GetRandomOrient(L_Point_Out), L_Point_Out};
             Points.Add(L_Ftran);
 
-            Preview_InstancedStaticMeshComponent->AddInstance(L_Ftran);
+            Preview_InstancedStaticMeshComponent->AddInstanceWorldSpace(L_Ftran);
             // DrawDebugPoint(GetWorld(), L_Point_Out, 10.0f, FColor::Green, false, 1.0f);
           }
         }
