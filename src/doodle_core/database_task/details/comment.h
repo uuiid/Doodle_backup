@@ -1,14 +1,15 @@
 #pragma once
 
+#include <doodle_core/database_task/details/tool.h>
 #include <doodle_core/doodle_core_fwd.h>
 #include <doodle_core/metadata/comment.h>
 
 namespace doodle::database_n {
 template <>
-struct sql_com<doodle::comment> {
+struct sql_com<doodle::comment> : detail::sql_create_table_base<tables::comment> {
   registry_ptr reg_;
-
-  void create_table(conn_ptr& in_ptr);
+  sql_com() = default;
+  sql_com(registry_ptr reg) : reg_{std::move(reg)} {}
   void insert(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id);
   void update(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id);
   /**

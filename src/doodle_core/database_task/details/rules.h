@@ -1,13 +1,14 @@
 #pragma once
 
+#include <doodle_core/database_task/details/tool.h>
 #include <doodle_core/doodle_core_fwd.h>
 #include <doodle_core/metadata/rules.h>
-
 namespace doodle::database_n {
 template <>
-struct sql_com<doodle::business::rules> {
+struct sql_com<doodle::business::rules> : detail::sql_create_table_base<tables::business_rules> {
   registry_ptr reg_;
-
+  sql_com() = default;
+  sql_com(registry_ptr reg) : reg_{std::move(reg)} {}
   void create_table(conn_ptr& in_ptr);
 
   void insert_sub(

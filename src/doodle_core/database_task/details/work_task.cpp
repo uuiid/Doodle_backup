@@ -4,18 +4,14 @@
 #include <doodle_core/database_task/sql_com.h>
 #include <doodle_core/logger/logger.h>
 
+#include "sqlpp11/insert_value_list.h"
+#include "sqlpp11/is_not_null.h"
+#include "sqlpp11/sqlite3/connection.h"
 #include <sqlpp11/sqlite3/sqlite3.h>
 #include <sqlpp11/sqlpp11.h>
+#include <utility>
 
 namespace doodle::database_n {
-void sql_com<doodle::work_task_info>::create_table(conn_ptr& in_ptr) {
-  static std::once_flag l_f{};
-  std::call_once(l_f, [&]() {
-    auto l_f = cmrc::DoodleLibResource::get_filesystem().open("core/sql_file.sql");
-
-    in_ptr->execute(std::string{l_f.cbegin(), l_f.cend()});
-  });
-}
 
 void sql_com<doodle::work_task_info>::insert(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
   namespace uuids = boost::uuids;

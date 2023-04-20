@@ -5,43 +5,136 @@
 // Created by TD on 2022/8/26.
 //
 
+#include "doodle_core/core/core_help_impl.h"
+#include "doodle_core/database_task/sqlite_client.h"
 #include <doodle_core/core/core_sql.h>
 #include <doodle_core/core/doodle_lib.h>
+#include <doodle_core/database_task/details/tool.h>
+#include <doodle_core/database_task/sqlite_client.h>
+#include <doodle_core/metadata/assets.h>
+#include <doodle_core/metadata/assets_file.h>
+#include <doodle_core/metadata/comment.h>
+#include <doodle_core/metadata/episodes.h>
+#include <doodle_core/metadata/export_file_info.h>
+#include <doodle_core/metadata/image_icon.h>
+#include <doodle_core/metadata/importance.h>
+#include <doodle_core/metadata/metadata.h>
+#include <doodle_core/metadata/move_create.h>
+#include <doodle_core/metadata/project.h>
+#include <doodle_core/metadata/redirection_path_info.h>
+#include <doodle_core/metadata/rules.h>
+#include <doodle_core/metadata/season.h>
+#include <doodle_core/metadata/shot.h>
+#include <doodle_core/metadata/time_point_wrap.h>
+#include <doodle_core/metadata/user.h>
+#include <doodle_core/metadata/work_task.h>
 #include <doodle_core/pin_yin/convert.h>
 
 #include <boost/test/unit_test.hpp>
 
+#include "sqlpp11/all_of.h"
+#include "sqlpp11/select.h"
 #include <sqlpp11/sqlite3/sqlite3.h>
 #include <sqlpp11/sqlpp11.h>
-
 using namespace doodle;
-BOOST_AUTO_TEST_CASE(test_sqlite3_insert) {
+using namespace doodle::database_n;
+BOOST_AUTO_TEST_CASE(test_sqlite3_create_table) {
+  doodle_lib l_lib{};
   auto l_sql_conn = doodle_lib::Get().ctx().emplace<database_info>().get_connection();
+  tables::work_task_info l_tables;
+  l_sql_conn->execute(detail::create_table(l_tables).foreign_column(l_tables.entity_id, tables::entity{}.id).end());
+  l_sql_conn->execute(detail::create_index(l_tables.entity_id));
+  l_sql_conn->execute(detail::create_index(l_tables.id));
+  (*l_sql_conn)(sqlpp::select(sqlpp::all_of(l_tables)).from(l_tables).unconditionally());
 
-  l_sql_conn->execute(R"(
-create table if not exists entity
-(
-    id          integer
-        primary key,
-    uuid_data   text,
-    update_time datetime default CURRENT_TIMESTAMP not null
-);
-)"s);
-  std::uint64_t l_r{};
+  (*l_sql_conn)(sqlpp::sqlite3::drop_if_exists_table(l_tables));
+}
+
+void create_test_database() {
   {
-    auto l_t = sqlpp::start_transaction(*l_sql_conn);
-    sql::Entity l_info{};
-    auto l_pre =
-        l_sql_conn->prepare(sqlpp::insert_into(l_info).set(l_info.uuidData = sqlpp::parameter(l_info.uuidData)));
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::project>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::episodes>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::shot>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::season>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::assets>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::assets_file>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::time_point_wrap>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::comment>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::image_icon>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::importance>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::redirection_path_info>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::business::rules>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::user>();
+  }
+  {
+    auto l_h = make_handle();
+    l_h.emplace<doodle::database>();
+    l_h.emplace<doodle::work_task_info>();
+  }
+}
 
-    for (auto i = 0; i < 10; ++i) {
-      l_pre.params.uuidData = fmt::format("tset {}", i);
-
-      l_r                   = (*l_sql_conn)(l_pre);
-      BOOST_TEST(l_r == (i + 1));
-    }
-    l_t.commit();
+BOOST_AUTO_TEST_CASE(test_sqlite3_save) {
+  doodle_lib l_lib{};
+  create_test_database();
+  for (auto&& [e, i] : g_reg()->view<database>().each()) {
+    BOOST_TEST_INFO(fmt::format("{}", i.uuid()));
   }
 
-  l_sql_conn.reset();
+  g_reg()->ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
+}
+
+BOOST_AUTO_TEST_CASE(test_sqlite3_open) {
+  doodle_lib l_lib{};
+  create_test_database();
+  g_reg()->ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
 }
