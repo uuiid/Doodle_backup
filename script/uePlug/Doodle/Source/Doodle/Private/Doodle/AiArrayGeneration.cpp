@@ -142,20 +142,16 @@ void ADoodleAiArrayGeneration::GenPoint() {
   // DrawDebugLine(GetWorld(), GetActorTransform().GetLocation(), GetActorTransform().GetLocation() + L_Vector * 50,
   // FColor::Red, false, 10.f);
   // DrawDebugBox(GetWorld(), L_Box_.GetCenter(), L_Box_.GetExtent(), FColor::Red, false, 10.f);
-  for (auto x = 0.0f; x <= FMath::Clamp(Row, 1, 1000); ++x) {
-    for (auto y = 0.0f; y <= FMath::Clamp(Column, 1, 1000); ++y) {
+  for (auto x = 0.0; x <= FMath::Clamp(Row, 1, 1000); ++x) {
+    for (auto y = 0.0; y <= FMath::Clamp(Column, 1, 1000); ++y) {
       FVector L_Point       = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
       const float L_Param   = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
-      FVector L_RightVector = SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World);
-      FVector2D L_RightVector_2D{L_RightVector.X, L_RightVector.Y};
+      FVector2D L_RightVector_2D =
+          SplineComponent->GetRightVectorAtSplineInputKey(L_Param, ESplineCoordinateSpace::World);
       L_RightVector_2D.Normalize();
-
-      FVector L_Vector = SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
-      FVector2D L_Vector_2D{L_Vector.X, L_Vector.Y};
+      FVector2D L_Vector_2D =
+          SplineComponent->GetLocationAtSplineInputKey(L_Param, ESplineCoordinateSpace::World) - L_Point;
       L_Vector_2D.Normalize();
-
-      // DrawDebugLine(GetWorld(), FVector{L_Vector_2D, 0}, FVector{L_RightVector_2D * 100, 0}, FColor::Red,
-      // false, 1.0f);
       if (FVector2D::DotProduct(L_Vector_2D, L_RightVector_2D) < 0.0) {
         FHitResult L_HitR{};
         if (UKismetSystemLibrary::LineTraceSingleForObjects(
