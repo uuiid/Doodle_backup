@@ -42,7 +42,10 @@ BOOST_AUTO_TEST_CASE(test_sqlite3_create_table) {
   doodle_lib l_lib{};
   auto l_sql_conn = doodle_lib::Get().ctx().emplace<database_info>().get_connection();
   tables::work_task_info l_tables;
-  l_sql_conn->execute(detail::create_table(l_tables).foreign_column(l_tables.entity_id, tables::entity{}.id).end());
+  l_sql_conn->execute(detail::create_table(l_tables)
+                          .foreign_column(l_tables.entity_id, tables::entity{}.id)
+                          .unique_column(l_tables.entity_id)
+                          .end());
   l_sql_conn->execute(detail::create_index(l_tables.entity_id));
   l_sql_conn->execute(detail::create_index(l_tables.id));
   (*l_sql_conn)(sqlpp::select(sqlpp::all_of(l_tables)).from(l_tables).unconditionally());
@@ -134,7 +137,15 @@ BOOST_AUTO_TEST_CASE(test_sqlite3_save) {
 }
 
 BOOST_AUTO_TEST_CASE(test_sqlite3_open) {
+  FSys::remove("D:/test.sqlite");
   doodle_lib l_lib{};
   create_test_database();
   g_reg()->ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
+
+  g_reg()->ctx().get<file_translator_ptr>()->open_("D:/test.sqlite");
+
+  for (auto&& [e, i] : g_reg()->view<database>().each()) {
+    BOOST_TEST_INFO(fmt::format("{}", i.uuid()));
+  }
+  BOOST_TEST_CHECK(g_reg()->view<database>().size() == 14);
 }
