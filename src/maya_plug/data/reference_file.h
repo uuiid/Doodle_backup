@@ -4,8 +4,11 @@
 #pragma once
 #include <maya_plug/main/maya_plug_fwd.h>
 
+#include "entt/entity/fwd.hpp"
+#include "maya/MString.h"
 #include <maya/MSelectionList.h>
 #include <maya/MTime.h>
+#include <vector>
 namespace doodle::maya_plug {
 class reference_file;
 namespace reference_file_ns {
@@ -124,15 +127,20 @@ class reference_file {
       const reference_file_ns::generate_fbx_file_path &in_fbx_name
   ) const;
 
+  bool has_chick_group() const;
+
+  std::vector<MObject> ref_objs{};
+  /**
+   * @brief 这个路径是显示的路径,  带有后缀以区分相同路径的多个引用
+   */
+  std::string path;
+
  public:
   /**
    * @brief 引用maya obj 节点
    */
   MObject p_m_object;
-  /**
-   * @brief 这个路径是显示的路径,  带有后缀以区分相同路径的多个引用
-   */
-  std::string path;
+
   /**
    * @brief 引用文件是否解算
    */
@@ -142,9 +150,13 @@ class reference_file {
 
   reference_file();
   explicit reference_file(const std::string &in_maya_namespace);
+  explicit reference_file(const MString &in_maya) : reference_file(std::string{in_maya.asUTF8()}) {}
   void init_show_name();
   void set_path(const MObject &in_ref_node);
   bool set_namespace(const std::string &in_namespace);
+  /// 获取引用标帜路径
+  const std::string &get_key_path() const;
+
   /**
    * @brief 将布料初始化状态, (会寻找特点名称的布料进行状态的重置)
    */
@@ -165,7 +177,6 @@ class reference_file {
    * @return
    */
   [[nodiscard]] FSys::path get_abs_path() const;
-  bool has_sim_cloth();
   /**
    * @brief 没有加载的引用和资产不存在的文件返回false 我们认为这不是异常, 属于正常情况
    */
@@ -213,22 +224,6 @@ class reference_file {
   entt::handle export_file_select(const export_arg &in_arg, const MSelectionList &in_list);
 
   /**
-   * @brief 在这个解算引用中添加一些标记的碰撞
-   * @return 返回值只有true , 就算标记碰撞体为空也会返回true 这种情况我们认为正常
-   * @throw maya_error maya返回值非成功
-   *
-   */
-  bool add_collision() const;
-
-  [[nodiscard]] bool is_loaded() const;
-
-  /**
-   * @brief 寻找是否有ue4组(作为导出标志)
-   * @return
-   */
-  bool has_ue4_group() const;
-
-  /**
    * @brief 从配置文件中查找需要导出组名称对应的 maya 组 (名称空间为引用空间)
    * @return 导出配置文件中对应的组
    */
@@ -246,6 +241,8 @@ class reference_file {
    * @return 选中所有的obj
    */
   MSelectionList get_all_object() const;
+
+  explicit inline operator bool() const { return has_chick_group(); }
 
  private:
   friend void to_json(nlohmann::json &j, const reference_file &p) {
@@ -269,6 +266,15 @@ class reference_file {
     }
     p.chick_mobject();
   }
+};
+
+class reference_file_factory {
+ public:
+  reference_file_factory()  = default;
+  ~reference_file_factory() = default;
+
+  [[nodiscard]] std::vector<entt::handle> create_ref() const;
+  void save_to_files() const;
 };
 
 }  // namespace doodle::maya_plug

@@ -11,14 +11,16 @@
 #include <doodle_core/metadata/redirection_path_info.h>
 #include <doodle_core/metadata/shot.h>
 
-#include <main/maya_plug_fwd.h>
 #include <maya_plug/data/find_duplicate_poly.h>
 #include <maya_plug/data/maya_call_guard.h>
 #include <maya_plug/data/maya_file_io.h>
 #include <maya_plug/data/qcloth_shape.h>
 #include <maya_plug/fmt/fmt_dag_path.h>
 #include <maya_plug/fmt/fmt_select_list.h>
+#include <maya_plug/main/maya_plug_fwd.h>
 
+#include "entt/entity/fwd.hpp"
+#include "exception/exception.h"
 #include <maya/MDagPath.h>
 #include <maya/MFileIO.h>
 #include <maya/MFileObject.h>
@@ -33,13 +35,14 @@
 #include <maya/MSceneMessage.h>
 #include <maya/MTime.h>
 #include <maya/MUuid.h>
+#include <vector>
 
 namespace doodle::maya_plug {
 
 namespace reference_file_ns {
 
 FSys::path generate_file_path_base::operator()(const reference_file &in_ref) const {
-  return get_path() / get_name(in_ref.is_loaded() ? in_ref.get_namespace() : ""s);
+  return get_path() / get_name(in_ref ? in_ref.get_namespace() : ""s);
 }
 
 bool generate_file_path_base::operator==(const generate_file_path_base &in) const noexcept {
@@ -84,7 +87,7 @@ std::string generate_file_path_base::get_extract_reference_name(const std::strin
 }
 
 generate_abc_file_path::generate_abc_file_path(const entt::registry &in) : generate_file_path_base() {
-  auto &l_cong           = in.ctx().at<project_config::base_config>();
+  auto &l_cong           = in.ctx().get<project_config::base_config>();
 
   extract_reference_name = l_cong.abc_export_extract_reference_name;
   format_reference_name  = l_cong.abc_export_format_reference_name;
@@ -120,7 +123,7 @@ FSys::path generate_abc_file_path::get_name(const std::string &in_ref_name) cons
 generate_abc_file_path::~generate_abc_file_path() = default;
 
 generate_fbx_file_path::generate_fbx_file_path(const entt::registry &in) : generate_file_path_base() {
-  auto &l_cong           = in.ctx().at<project_config::base_config>();
+  auto &l_cong           = in.ctx().get<project_config::base_config>();
   camera_suffix          = l_cong.maya_camera_suffix;
   extract_reference_name = l_cong.abc_export_extract_reference_name;
   format_reference_name  = l_cong.abc_export_format_reference_name;
@@ -149,7 +152,7 @@ FSys::path generate_fbx_file_path::get_name(const std::string &in_ref_name) cons
     );
 
   FSys::path l_path{l_name};
-  l_path = l_path.generic_path();
+  l_path = l_path.generic_string();
   l_path += ".fbx";
   return l_path;
 }
@@ -261,7 +264,7 @@ bool reference_file::replace_sim_assets_file() {
     return false;
   }
 
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   FSys::path k_m_str{get_path()};
   DOODLE_MAYA_CHICK(k_s);
   auto k_vfx_path = k_cfg.vfx_cloth_sim_path /
@@ -326,7 +329,7 @@ bool reference_file::rename_material() const {
 
 FSys::path reference_file::export_abc(const MTime &in_start, const MTime &in_endl) const {
   MStatus k_s{};
-  auto &k_cfg        = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg        = g_reg()->ctx().get<project_config::base_config>();
   auto l_export_root = this->export_group_attr();
 
   if (!l_export_root) {
@@ -364,7 +367,7 @@ FSys::path reference_file::export_abc(const MTime &in_start, const MTime &in_end
   if (k_cfg.use_divide_group_export) {
     ranges::for_each(export_path, [](MDagPath &in) { in.pop(); });
 
-    auto l_suffix = g_reg()->ctx().at<project_config::base_config>().maya_out_put_abc_suffix;
+    auto l_suffix = g_reg()->ctx().get<project_config::base_config>().maya_out_put_abc_suffix;
     export_path   = find_out_group_child_suffix_node(l_suffix);
     export_path |=
         ranges::actions::unique([](const MDagPath &in_r, const MDagPath &in_l) -> bool { return in_r == in_l; });
@@ -397,27 +400,11 @@ FSys::path reference_file::export_abc(const MTime &in_start, const MTime &in_end
   }
   return l_path;
 }
-bool reference_file::add_collision() const {
-  if (collision_model.empty()) return true;
-
-  MStatus k_s{};
-  k_s = MGlobal::executeCommand(d_str{R"(lockNode -l false -lu false ":initialShadingGroup";)"});
-  DOODLE_MAYA_CHICK(k_s);
-
-  auto l_item = this->get_collision_model();
-  k_s         = l_item.add(d_str{fmt::format("{}:qlSolver1", get_namespace())}, true);
-  DOODLE_MAYA_CHICK(k_s);
-  k_s = MGlobal::setActiveSelectionList(l_item);
-  DOODLE_MAYA_CHICK(k_s);
-  k_s = MGlobal::executeCommand(d_str{"qlCreateCollider;"});
-  DOODLE_MAYA_CHICK(k_s);
-  return true;
-}
 
 FSys::path reference_file::export_fbx(const MTime &in_start, const MTime &in_end) const {
   MSelectionList k_select{};
   MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   try {
     k_s = k_select.add(d_str{fmt::format("{}:{}", get_namespace(), k_cfg.export_group)}, true);
     DOODLE_MAYA_CHICK(k_s);
@@ -452,41 +439,11 @@ bool reference_file::has_node(const MObject &in_node) const {
 
   return false;
 }
-bool reference_file::is_loaded() const {
-  try {
-    ///@brief  引用为空的情况下，我们主动测试一下是否有导出组，如果有就可以认为时已加载的
-    chick_mobject();
-    MFnReference k_ref{p_m_object};
-    MStatus k_s{};
-    auto k_r = k_ref.isLoaded(&k_s);
-    DOODLE_MAYA_CHICK(k_s);
-    return k_r;
-  } catch (const std::runtime_error &inerr) {
-    DOODLE_LOG_INFO("查询引用方法 {} 错误, 使用寻找配置导出组的方式确认 ", boost::diagnostic_information(inerr));
-    return has_ue4_group();
-  }
-}
-bool reference_file::has_sim_cloth() {
-  chick_mobject();
-  MStatus k_s{};
-  MObjectArray k_objs = MNamespace::getNamespaceObjects(d_str{file_namespace}, false, &k_s);
-  DOODLE_MAYA_CHICK(k_s);
-  MFnDependencyNode k_node{};
-  for (int l_i = 0; l_i < k_objs.length(); ++l_i) {
-    k_s = k_node.setObject(k_objs[l_i]);
-    DOODLE_MAYA_CHICK(k_s);
-    if (k_node.typeName(&k_s) == "qlSolverShape") {
-      DOODLE_MAYA_CHICK(k_s);
-      return true;
-    }
-  }
-  return false;
-}
 bool reference_file::set_namespace(const std::string &in_namespace) {
   DOODLE_CHICK(!in_namespace.empty(), doodle_error{"空名称空间"});
   file_namespace = in_namespace.substr(1);
   find_ref_node();
-  return has_ue4_group();
+  return has_chick_group();
 }
 bool reference_file::find_ref_node() {
   chick_mobject();
@@ -514,22 +471,6 @@ bool reference_file::find_ref_node() {
   path = d_str{k_ref.fileName(false, true, true, &k_s)};
   DOODLE_LOG_INFO("获得引用路径 {} 名称空间 {}", path, file_namespace);
   return true;
-}
-bool reference_file::has_ue4_group() const {
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
-  try {
-    chick_mobject();
-    MStatus k_s{};
-    MObjectArray k_objs = MNamespace::getNamespaceObjects(d_str{file_namespace}, false, &k_s);
-    DOODLE_MAYA_CHICK(k_s);
-    MSelectionList k_select{};
-    k_s = k_select.add(d_str{fmt::format("{}:{}", get_namespace(), k_cfg.export_group)}, true);
-    DOODLE_MAYA_CHICK(k_s);
-    return true;
-  } catch (const std::runtime_error &err) {
-    DOODLE_LOG_INFO("引用文件 {} 没有配置中指定的 {} 导出组", file_namespace, k_cfg.export_group);
-    return false;
-  }
 }
 void reference_file::qlUpdateInitialPose() const {
   DOODLE_LOG_INFO("开始更新解算文件 {} 中的布料初始化姿势 {}", get_namespace());
@@ -561,7 +502,7 @@ entt::handle reference_file::export_file(const reference_file::export_arg &in_ar
       l_path = export_fbx(in_arg.start_p, in_arg.end_p);
     } break;
   }
-  if (!l_path.empty() && g_reg()->ctx().at<project_config::base_config>().use_write_metadata) {
+  if (!l_path.empty() && g_reg()->ctx().get<project_config::base_config>().use_write_metadata) {
     out_ = make_handle();
     FSys::path l_ref_file{this->path};
     if (l_ref_file.empty()) {
@@ -603,7 +544,7 @@ entt::handle reference_file::export_file_select(
       l_path                  = export_fbx(in_arg.start_p, in_arg.end_p, in_list, l_export);
     } break;
   }
-  if (!l_path.empty() && g_reg()->ctx().at<project_config::base_config>().use_write_metadata) {
+  if (!l_path.empty() && g_reg()->ctx().get<project_config::base_config>().use_write_metadata) {
     out_ = make_handle();
     FSys::path l_ref_file{this->path};
     if (l_ref_file.empty()) {
@@ -663,7 +604,7 @@ bool reference_file::replace_file(const entt::handle &in_handle) {
   DOODLE_MAYA_CHICK(k_s);
   file_namespace = l_name_d;
   DOODLE_CHICK(find_ref_node(), doodle_error{"没有在新的名称空间中查询到引用节点"});
-  if (!has_ue4_group()) DOODLE_LOG_WARN("没有在引用文件中找到 导出 组");
+  if (!has_chick_group()) DOODLE_LOG_WARN("没有在引用文件中找到 导出 组");
   return false;
 }
 FSys::path reference_file::get_path() const {
@@ -688,7 +629,7 @@ FSys::path reference_file::export_abc(
     const reference_file_ns::generate_abc_file_path &in_abc_name
 ) const {
   FSys::path out_{};
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
 
   if (k_cfg.use_rename_material) rename_material();
   MStatus k_s{};
@@ -734,10 +675,10 @@ FSys::path reference_file::export_fbx(
 ) const {
   FSys::path out_{};
 
-  DOODLE_CHICK(is_loaded(), doodle_error{"需要导出fbx的引用必须加载"});
+  DOODLE_CHICK(*this, doodle_error{"需要有效的引用"});
 
   MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
 
   if (in_export_obj.isEmpty()) {
     DOODLE_LOG_WARN("没有选中的物体, 不进行输出");
@@ -793,7 +734,7 @@ std::optional<MDagPath> reference_file::export_group_attr() const {
 
   DOODLE_MAYA_CHICK(k_s);
   MSelectionList k_select{};
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   MDagPath l_path;
   try {
     k_s = k_select.add(d_str{fmt::format("{}:{}", get_namespace(), k_cfg.export_group)}, true);
@@ -806,50 +747,51 @@ std::optional<MDagPath> reference_file::export_group_attr() const {
   return l_path.isValid() ? std::make_optional(l_path) : std::optional<MDagPath>{};
 }
 std::vector<MDagPath> reference_file::qcloth_export_model() const {
-  auto l_cloth = qcloth_shape::create(make_handle(*this));
+  // @TODO: 调整导出模型的方式
+  // auto l_cloth = qcloth_shape::create(make_handle(*this));
 
-  MStatus l_status{};
-  MObject l_return{};
+  // MStatus l_status{};
+  // MObject l_return{};
   std::vector<MDagPath> l_all_path{};
-  if (!has_ue4_group()) return l_all_path;
+  // if (!has_chick_group()) return l_all_path;
 
-  MFnDagNode l_child{};
-  MObject l_export_group{export_group_attr()->node(&l_status)};
-  DOODLE_MAYA_CHICK(l_status);
+  // MFnDagNode l_child{};
+  // MObject l_export_group{export_group_attr()->node(&l_status)};
+  // DOODLE_MAYA_CHICK(l_status);
 
-  for (auto &&qlc : l_cloth) {
-    auto l_object = qlc.get<qcloth_shape>().ql_cloth_shape().node(&l_status);
-    DOODLE_MAYA_CHICK(l_status);
-    for (MItDependencyGraph l_it{
-             l_object, MFn::Type::kMesh, MItDependencyGraph::Direction::kDownstream,
-             MItDependencyGraph::Traversal::kDepthFirst, MItDependencyGraph::Level::kNodeLevel, &l_status};
-         !l_it.isDone() && l_status; l_it.next()) {
-      auto l_temp_sp = get_dag_path(l_it.currentItem(&l_status));
-      DOODLE_MAYA_CHICK(l_status);
-      auto l_current_path = get_dag_path(l_temp_sp.transform(&l_status));
-      DOODLE_MAYA_CHICK(l_status);
-      l_status = l_child.setObject(l_current_path);
-      DOODLE_MAYA_CHICK(l_status);
-      if (l_child.hasParent(l_export_group)) {
-        auto l_path = l_current_path;
-        if (auto l_it_j = ranges::find_if(l_all_path, [&](const MDagPath &in) { return l_path == in; });
-            l_it_j == l_all_path.end()) {
-          l_all_path.emplace_back(l_current_path);
-        }
-      }
-    }
-  }
+  // for (auto &&qlc : l_cloth) {
+  //   auto l_object = qlc.get<qcloth_shape>().ql_cloth_shape().node(&l_status);
+  //   DOODLE_MAYA_CHICK(l_status);
+  //   for (MItDependencyGraph l_it{
+  //            l_object, MFn::Type::kMesh, MItDependencyGraph::Direction::kDownstream,
+  //            MItDependencyGraph::Traversal::kDepthFirst, MItDependencyGraph::Level::kNodeLevel, &l_status};
+  //        !l_it.isDone() && l_status; l_it.next()) {
+  //     auto l_temp_sp = get_dag_path(l_it.currentItem(&l_status));
+  //     DOODLE_MAYA_CHICK(l_status);
+  //     auto l_current_path = get_dag_path(l_temp_sp.transform(&l_status));
+  //     DOODLE_MAYA_CHICK(l_status);
+  //     l_status = l_child.setObject(l_current_path);
+  //     DOODLE_MAYA_CHICK(l_status);
+  //     if (l_child.hasParent(l_export_group)) {
+  //       auto l_path = l_current_path;
+  //       if (auto l_it_j = ranges::find_if(l_all_path, [&](const MDagPath &in) { return l_path == in; });
+  //           l_it_j == l_all_path.end()) {
+  //         l_all_path.emplace_back(l_current_path);
+  //       }
+  //     }
+  //   }
+  // }
 
   return l_all_path;
 }
 void reference_file::bake_results(const MTime &in_start, const MTime &in_end) const {
-  if (!has_ue4_group()) {
+  if (!has_chick_group()) {
     DOODLE_LOG_INFO("{} 没有ue4组", path);
     return;
   }
 
   MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   /**
    *
    * @brief
@@ -902,7 +844,7 @@ bakeResults -simulation true -t "{}:{}" -hierarchy below -sampleBy 1 -oversampli
   }
 }
 std::string reference_file::get_abc_exprt_arg() {
-  auto &k_cfg = g_reg()->ctx().at<project_config::base_config>();
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   std::string l_r{};
   if (k_cfg.export_abc_arg[0]) l_r += "-uvWrite ";
   if (k_cfg.export_abc_arg[1]) l_r += "-writeColorSets ";
@@ -967,5 +909,46 @@ void reference_file::add_field_dag(const MSelectionList &in_list) {
   }
 }
 const std::string &reference_file::get_field_string() const { return field_attr; }
+const std::string &reference_file::get_key_path() const { return path; }
+bool reference_file::has_chick_group() const {
+  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
+  try {
+    chick_mobject();
+    MStatus k_s{};
+
+    MSelectionList k_select{};
+    k_s = k_select.add(d_str{fmt::format("{}:{}", get_namespace(), k_cfg.export_group)}, true);
+    maya_chick(k_s);
+    return true;
+  } catch (const maya_error &err) {
+    DOODLE_LOG_INFO("引用文件 {} 没有配置中指定的 {} 导出组 {}", file_namespace, k_cfg.export_group, err.what());
+    return false;
+  }
+}
+
+std::vector<entt::handle> reference_file_factory::create_ref() const {
+  std::vector<entt::handle> l_ret{};
+  g_reg()->clear<reference_file>();
+  g_reg()->clear<qcloth_shape>();
+  MStatus k_s;
+  auto k_names = MNamespace::getNamespaces(MNamespace::rootNamespace(), false, &k_s);
+  maya_chick(k_s);
+
+  for (int l_i = 0; l_i < k_names.length(); ++l_i) {
+    auto &&k_name = k_names[l_i];
+    reference_file k_ref{k_name};
+    if (k_ref) {
+      DOODLE_LOG_INFO("获得引用文件 {}", k_ref.get_key_path());
+      auto l_h = make_handle();
+      l_h.emplace<reference_file>(k_ref);
+      l_ret.emplace_back(l_h);
+    } else {
+      DOODLE_LOG_INFO("引用文件 {} 未加载", k_ref.get_key_path());
+    }
+  }
+
+  return l_ret;
+}
+void reference_file_factory::save_to_files() const {}
 
 }  // namespace doodle::maya_plug

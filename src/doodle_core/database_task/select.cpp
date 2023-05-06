@@ -22,6 +22,8 @@
 #include <boost/asio.hpp>
 
 #include "details/tool.h"
+#include "metadata/metadata.h"
+#include "metadata/project.h"
 #include <range/v3/all.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/range_for.hpp>
@@ -80,6 +82,10 @@ struct future_data {
     );
     in_reg->remove<t>(l_entt_list.begin(), l_entt_list.end());
     in_reg->insert<t>(l_entt_list.begin(), l_entt_list.end(), l_data_list.begin());
+    for (auto&& e : l_entt_list) {
+      // 触发更改
+      in_reg->patch<t>(e);
+    }
   };
 };
 
@@ -145,8 +151,8 @@ class select::impl {
                                        auto l_view = local_reg->view<doodle::project>();
                                        if (!l_view.empty()) {
                                          auto l_h = entt::handle{*local_reg, l_view.front()};
-                                         local_reg->ctx().at<doodle::project>() = l_h.get<doodle::project>();
-                                         local_reg->ctx().at<doodle::project_config::base_config>() =
+                                         local_reg->ctx().get<doodle::project>() = l_h.get<doodle::project>();
+                                         local_reg->ctx().get<doodle::project_config::base_config>() =
                                              l_h.any_of<doodle::project_config::base_config>()
                                                  ? l_h.get<doodle::project_config::base_config>()
                                                  : doodle::project_config::base_config{};
@@ -295,9 +301,29 @@ bool select::operator()(entt::registry& in_registry, const FSys::path& in_projec
   for (auto&& l_f : p_i->list_install) {
     l_f(p_i->local_reg);
   }
+  for (auto&& [e, p] : p_i->local_reg->view<project>().each()) {
+    p_i->local_reg->emplace_or_replace<database>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<project_config::base_config>().each()) {
+    p_i->local_reg->emplace_or_replace<database>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<doodle::episodes>().each()) {
+    p_i->local_reg->patch<doodle::episodes>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<doodle::shot>().each()) {
+    p_i->local_reg->patch<doodle::shot>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<doodle::season>().each()) {
+    p_i->local_reg->patch<doodle::season>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<doodle::assets>().each()) {
+    p_i->local_reg->patch<doodle::assets>(e);
+  }
+  for (auto&& [e, p] : p_i->local_reg->view<doodle::assets_file>().each()) {
+    p_i->local_reg->patch<doodle::assets_file>(e);
+  }
 
-  p_i->local_reg->ctx().at<project>().set_path(p_i->project.parent_path());
-  (*in_connect)(sqlpp::sqlite3::drop_if_exists_table(tables::com_entity{}));
+  //  (*in_connect)(sqlpp::sqlite3::drop_if_exists_table(tables::com_entity{}));
   return true;
 }
 

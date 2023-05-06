@@ -72,7 +72,7 @@ void sql_com<doodle::business::rules_ns::time_point_info>::select(
                   l_table.entity_id, l_table.first_time, l_table.second_time, l_table.info, l_table.is_extra_work
        )
                   .from(l_table)
-                  .where(l_table.entity_id.is_null()))) {
+                  .where(l_table.entity_id.is_not_null()))) {
     business::rules_ns::time_point_info l_t{};
     l_t.first         = row.first_time.value();
     l_t.second        = row.second_time.value();
@@ -87,7 +87,7 @@ void sql_com<doodle::business::rules_ns::time_point_info>::select(
       DOODLE_LOG_INFO("选择数据库id {} 未找到实体", l_id);
     }
   }
-  reg_->insert(l_entts.begin(), l_entts.end(), l_time.begin());
+  reg_->insert<doodle::business::rules_ns::time_point_info>(l_entts.begin(), l_entts.end(), l_time.begin());
 }
 void sql_com<doodle::business::rules_ns::time_point_info>::destroy(
     conn_ptr& in_ptr, const std::vector<std::int64_t>& in_handle

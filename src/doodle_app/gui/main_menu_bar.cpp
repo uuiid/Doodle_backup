@@ -57,7 +57,7 @@ void main_menu_bar::menu_file() {
     g_windows_manage().create_windows_arg(
         windows_init_arg{}
             .create<file_dialog>(file_dialog::dialog_args{}.async_read([](const FSys::path &in) mutable {
-              g_reg()->ctx().at<database_n::file_translator_ptr>()->async_open(in, [in](auto) {
+              doodle_lib::Get().ctx().get<database_n::file_translator_ptr>()->async_open(in, [in](auto) {
                 DOODLE_LOG_INFO("打开项目 {}", in);
               });
             }))
@@ -72,7 +72,7 @@ void main_menu_bar::menu_file() {
       auto &l_p = k_list[l_i];
       if (!l_p.empty())
         if (dear::MenuItem(fmt::format("{0}##{1}", l_p.generic_string(), l_i))) {
-          g_reg()->ctx().at<database_n::file_translator_ptr>()->async_open(l_p, [l_p](auto) {
+          doodle_lib::Get().ctx().get<database_n::file_translator_ptr>()->async_open(l_p, [l_p](auto) {
             DOODLE_LOG_INFO("打开项目 {}", l_p);
           });
         }
@@ -81,7 +81,7 @@ void main_menu_bar::menu_file() {
 
   ImGui::Separator();
 
-  if (dear::MenuItem("保存"s, "Ctrl+S")) g_reg()->ctx().at<core_sig>().save();
+  if (dear::MenuItem("保存"s, "Ctrl+S")) g_reg()->ctx().get<core_sig>().save();
 
   ImGui::Separator();
   dear::MenuItem("调试"s, &p_i->p_debug_show);
@@ -94,7 +94,7 @@ void main_menu_bar::menu_file() {
 }
 
 bool main_menu_bar::render() {
-  if (ImGui::IsKeyPressed(ImGuiKey_S) && ImGui::GetIO().KeyCtrl) g_reg()->ctx().at<core_sig>().save();
+  if (ImGui::IsKeyPressed(ImGuiKey_S) && ImGui::GetIO().KeyCtrl) g_reg()->ctx().get<core_sig>().save();
 
   dear::Menu{"文件"} && [this]() { this->menu_file(); };
   dear::Menu{"窗口"} && [this]() { this->menu_windows(); };
@@ -120,16 +120,11 @@ void main_menu_bar::menu_windows() {
   }
 }
 void main_menu_bar::menu_layout() {
-  //  ImGui::InputText(*p_i->layout_name_.gui_name, &p_i->layout_name_.data);
-  //  ImGui::SameLine();
-  //  if (ImGui::Button(*p_i->button_save_layout_name_))
-
-  //
-  //  for (auto &&i : p_i->layout_list) {
-  //    if (ImGui::MenuItem(i.name.c_str())) {
-
-  //    };
-  //  }
+  for (auto &&[name, open] : g_windows_manage().get_layout_list()) {
+    if (dear::MenuItem(name.data(), open)) {
+      if (!open) g_windows_manage().switch_layout(name);
+    }
+  }
 }
 main_menu_bar::main_menu_bar(const main_menu_bar &in) noexcept : p_i(std::make_unique<impl>(*in.p_i)) {}
 main_menu_bar::main_menu_bar(main_menu_bar &&in) noexcept { p_i = std::move(in.p_i); }

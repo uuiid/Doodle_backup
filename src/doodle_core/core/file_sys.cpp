@@ -7,9 +7,10 @@
 #include <doodle_core/doodle_core_fwd.h>
 #include <doodle_core/logger/logger.h>
 
-#include <Windows.h>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/dll.hpp>
+
+#include <Windows.h>
 #include <nlohmann/json.hpp>
 #include <shellapi.h>
 #include <tchar.h>
@@ -135,7 +136,15 @@ FSys::path write_tmp_file(
   return k_tmp_path;
 }
 
+FSys::path from_quotation_marks(const std::string &in_string) {
+  if (*in_string.begin() == '"' && *(--in_string.end()) == '"') {
+    return FSys::path{in_string.substr(1, in_string.size() - 1)};
+  }
+  return FSys::path{in_string};
+}
 }  // namespace doodle::FSys
+
+#ifndef USE_STD_FSYS
 
 namespace nlohmann {
 // template <>
@@ -146,3 +155,5 @@ void adl_serializer<boost::filesystem::path>::from_json(const json &j, boost::fi
   in_path = j.get<std::string>();
 }
 }  // namespace nlohmann
+
+#endif

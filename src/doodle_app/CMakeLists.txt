@@ -31,7 +31,6 @@ target_link_libraries(
         PUBLIC
         doodle_core
         imgui::imgui
-        Boost::program_options
 
 
         PRIVATE
@@ -47,6 +46,7 @@ target_compile_options(doodle_app
         $<$<CXX_COMPILER_ID:MSVC>: /EHs >
         PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>: /bigobj >
+        $<$<CXX_COMPILER_ID:MSVC>: /MP >
         )
 
 set_target_properties(doodle_app

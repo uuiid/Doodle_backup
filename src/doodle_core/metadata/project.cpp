@@ -29,7 +29,7 @@ void project::set_name(const std::string& Name) noexcept {
 const FSys::path& project::get_path() const noexcept { return p_path; }
 
 void project::set_path(const FSys::path& Path) {
-  DOODLE_CHICK(!Path.empty(), doodle_error{"项目路径不能为空"});
+  //  DOODLE_CHICK(!Path.empty(), doodle_error{"项目路径不能为空"});
   if (p_path == Path) return;
 
   p_path = Path;
@@ -179,6 +179,6 @@ FSys::path project_config::base_config::get_upload_path() const {
   if (upload_path.has_root_path())
     return upload_path;
   else
-    return g_reg()->ctx().at<project>().p_path / upload_path;
+    return g_reg()->ctx().get<project>().p_path / upload_path;
 }
 }  // namespace doodle

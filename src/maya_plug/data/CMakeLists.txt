@@ -1,6 +1,7 @@
-target_sources(doodle_maya
+target_sources(doodle_maya_lib
         PUBLIC
         create_hud_node.h
+        cloth_interface.h
         dem_bones_ex.h
         find_duplicate_poly.h
         maya_call_guard.h
@@ -10,7 +11,6 @@ target_sources(doodle_maya
         maya_poly_info.h
         maya_register_main.h
         maya_tool.h
-        play_blast.h
         qcloth_shape.h
         reference_file.h
         sim_cloth_tools.h
@@ -18,6 +18,11 @@ target_sources(doodle_maya
         sequence_to_blend_shape.h
         null_facet.h
         maya_create_movie.h
+        ncloth_factory.h
+        qcloth_factory.h
+        export_file_abc.h
+        export_file_fbx.h
+        maya_conv_str.h
 
         PRIVATE
         create_hud_node.cpp
@@ -29,7 +34,6 @@ target_sources(doodle_maya
         maya_file_io.cpp
         maya_poly_info.cpp
         maya_tool.cpp
-        play_blast.cpp
         qcloth_shape.cpp
         reference_file.cpp
         sim_cloth_tools.cpp
@@ -37,4 +41,8 @@ target_sources(doodle_maya
         sequence_to_blend_shape.cpp
         null_facet.cpp
         maya_create_movie.cpp
+        ncloth_factory.cpp
+        qcloth_factory.cpp
+        export_file_fbx.cpp
+        export_file_abc.cpp
         )

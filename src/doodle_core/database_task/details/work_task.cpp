@@ -67,15 +67,15 @@ void sql_com<doodle::work_task_info>::select(conn_ptr& in_ptr, const std::map<st
                                 l_tabl.time_point
          )
                                 .from(l_tabl)
-                                .where(l_tabl.entity_id.is_null()))) {
+                                .where(l_tabl.entity_id.is_not_null()))) {
       work_task_info l_w{};
       l_w.abstract  = row.abstract.value();
       l_w.region    = row.region.value();
 
       l_w.time      = chrono_ns::round<doodle::work_task_info::time_point_type::duration>(row.time_point.value());
       l_w.task_name = row.task_name.value();
-      auto l_user_f = row.user_id.value();
-      l_w.user_ref.user_attr(database::find_by_uuid(boost::lexical_cast<uuids::uuid>(l_user_f)));
+      if (!row.user_id.is_null())
+        l_w.user_ref.handle_cache = database::find_by_uuid(boost::lexical_cast<uuids::uuid>(row.user_id.value()));
       auto l_id = row.entity_id.value();
       if (in_handle.find(l_id) != in_handle.end()) {
         l_works.emplace_back(std::move(l_w));
@@ -85,7 +85,7 @@ void sql_com<doodle::work_task_info>::select(conn_ptr& in_ptr, const std::map<st
         DOODLE_LOG_INFO("选择数据库id {} 未找到实体", l_id);
       }
     }
-    reg_->insert(l_entts.begin(), l_entts.end(), l_works.begin());
+    reg_->insert<doodle::work_task_info>(l_entts.begin(), l_entts.end(), l_works.begin());
   }
 }
 void sql_com<doodle::work_task_info>::destroy(conn_ptr& in_ptr, const std::vector<std::int64_t>& in_handle) {

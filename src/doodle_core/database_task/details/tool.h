@@ -418,7 +418,6 @@ DOODLE_SQL_COLUMN_IMP(export_type_, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(path, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(name, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(version, sqlpp::integer, detail::can_be_null);
-DOODLE_SQL_COLUMN_IMP(user_ref, sqlpp::integer, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(first_time, sqlpp::time_point, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(second_time, sqlpp::time_point, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(info, sqlpp::text, detail::can_be_null);
@@ -458,7 +457,6 @@ DOODLE_SQL_COLUMN_IMP(p_shor_str, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(parent_id, sqlpp::integer, detail::can_be_null);
 
 }  // namespace column
-DOODLE_SQL_TABLE_IMP(entity1, column::id, column::entity_id);
 DOODLE_SQL_TABLE_IMP(entity, column::id, column::uuid_data);
 DOODLE_SQL_TABLE_IMP(com_entity, column::id, column::entity_id, column::com_hash, column::json_data);
 
@@ -479,7 +477,7 @@ DOODLE_SQL_TABLE_IMP(
 );
 DOODLE_SQL_TABLE_IMP(image_icon, column::id, column::entity_id, column::path);
 DOODLE_SQL_TABLE_IMP(
-    assets_file, column::id, column::entity_id, column::name, column::path, column::version, column::user_ref
+    assets_file, column::id, column::entity_id, column::name, column::path, column::version, column::user_id
 );
 DOODLE_SQL_TABLE_IMP(
     time_point_info, column::id, column::entity_id, column::first_time, column::second_time, column::info,
@@ -601,6 +599,21 @@ struct sql_create_table_base {
 
   bool has_table(doodle::conn_ptr& in_ptr) {
     const table_t l_tables{};
+    return doodle::database_n::detail::has_table(l_tables, *in_ptr);
+  }
+};
+template <>
+struct sql_create_table_base<tables::entity> {
+ public:
+  sql_create_table_base() = default;
+  virtual void create_table(doodle::conn_ptr& in_ptr) {
+    const tables::entity l_tables{};
+    in_ptr->execute(detail::create_table(l_tables).unique_column(l_tables.uuid_data).end());
+    in_ptr->execute(detail::create_index(l_tables.id));
+  };
+
+  bool has_table(doodle::conn_ptr& in_ptr) {
+    const tables::entity l_tables{};
     return doodle::database_n::detail::has_table(l_tables, *in_ptr);
   }
 };

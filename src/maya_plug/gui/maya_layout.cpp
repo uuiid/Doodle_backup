@@ -37,6 +37,13 @@ void maya_layout::layout(ImGuiID in_id, const ImVec2 &in_size) {
 
   ImGui::DockBuilderFinish(in_id);
 }
+void maya_layout::set_show() {
+
+
+
+
+  
+}
 
 maya_layout::~maya_layout() = default;
 

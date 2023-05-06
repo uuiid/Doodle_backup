@@ -56,7 +56,8 @@ void sql_com<doodle::time_point_wrap>::select(conn_ptr& in_ptr, const std::map<s
   }
 
   for (auto& row :
-       l_conn(sqlpp::select(l_table.entity_id, l_table.time_point).from(l_table).where(l_table.entity_id.is_null()))) {
+       l_conn(sqlpp::select(l_table.entity_id, l_table.time_point).from(l_table).where(l_table.entity_id.is_not_null())
+       )) {
     auto l_id = row.entity_id.value();
     if (in_handle.find(l_id) != in_handle.end()) {
       l_time.emplace_back(row.time_point.value());
@@ -66,7 +67,7 @@ void sql_com<doodle::time_point_wrap>::select(conn_ptr& in_ptr, const std::map<s
       DOODLE_LOG_INFO("选择数据库id {} 未找到实体", l_id);
     }
   }
-  reg_->insert(l_entts.begin(), l_entts.end(), l_time.begin());
+  reg_->insert<doodle::time_point_wrap>(l_entts.begin(), l_entts.end(), l_time.begin());
 }
 void sql_com<doodle::time_point_wrap>::destroy(conn_ptr& in_ptr, const std::vector<std::int64_t>& in_handle) {
   detail::sql_com_destroy<tables::time_point_wrap>(in_ptr, in_handle);

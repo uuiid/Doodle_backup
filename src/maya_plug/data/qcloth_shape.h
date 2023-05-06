@@ -3,9 +3,13 @@
 //
 
 #pragma once
+#include <maya_plug/data/cloth_interface.h>
 #include <maya_plug/main/maya_plug_fwd.h>
 
+#include "entt/entity/fwd.hpp"
+#include "maya/MApiNamespace.h"
 #include <maya/MObject.h>
+#include <string>
 
 // #include <maya/MDagPath.h>
 
@@ -34,7 +38,7 @@ using shape_list = std::vector<maya_obj>;
 
 }  // namespace qcloth_shape_n
 
-class qcloth_shape {
+class qcloth_shape : public cloth_interface::element_type {
  public:
   class cloth_group {
    public:
@@ -64,45 +68,31 @@ class qcloth_shape {
   static void rest_skin_custer_attr(const MObject& in_anim_node);
 
  private:
-  entt::handle p_ref_file;
   /**
    * @brief qlClothShape 类型 节点
    */
   MObject obj;
 
  public:
+  inline static MString qlSolverShape{L"qlSolverShape"};
+  inline static MString qlClothShape{L"qlClothShape"};
   qcloth_shape();
-  /**
-   * @brief Construct a new qcloth shape object
-   *
-   * @param in_ref_file 在哪个引用文件中
-   * @param in_object 传入的maya obj
-   */
-  explicit qcloth_shape(const entt::handle& in_ref_file, const MObject& in_object);
 
   /**
-   * @brief 设置qcloth缓存路径,如果存在缓存文件,还会删除缓存文件
-   * @return 完成设置
-   */
-  bool set_cache_folder() const;
-  bool set_cache_folder(const FSys::path& in_path) const;
-  /**
-   * @brief 使用 MPlug::asMObject 作为强行评估节点属性的方法, 在
-   * 没有gui的情况下包装解算的正常
    *
-   *
-   * @throw maya_error 有可能找不到需要评估的属性, 抛出异常
-   * @throw doodle_error 也可能属性 mobj 为空, 抛出异常
-   * @return true MObject 不空
-   * @return false 空mobj(有可能没有完成评估)
+   * @param in_object qcloth shape object
    */
-  bool create_cache() const;
+  explicit qcloth_shape(const MObject& in_object);
 
-  /**
-   * @brief 使用配置添加风场
-   *
-   */
-  void add_field() const;
+  void sim_cloth() const override;
+  void add_field(const entt::handle& in_handle) const override;
+  void add_collision(const entt::handle& in_handle) const override;
+  void rest(const entt::handle& in_handle) const override;
+  MObject get_solver() const override;
+  void set_cache_folder(const entt::handle& in_handle, const FSys::path& in_path) const override;
+  std::string get_namespace() const override;
+  void cover_cloth_attr(const entt::handle& in_handle) const override;
+
   /**
    * @brief 获取布料形状（这个是一个tran）
    * @return 布料dag路径
@@ -152,7 +142,6 @@ class qcloth_shape {
    * @param in_ref_file 传入的引用文件句柄
    * @return 完成布料网格的创建的句柄
    */
-  static std::vector<entt::handle> create(const entt::handle& in_ref_file);
 
   static MObject get_ql_solver(const MSelectionList& in_selection_list);
   static MObject get_ql_solver();

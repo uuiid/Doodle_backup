@@ -13,6 +13,7 @@
 #include <doodle_app/app/facet/gui_facet.h>
 #include <doodle_app/gui/open_file_dialog.h>
 
+#include "imgui.h"
 #include <gui/base/ref_base.h>
 #include <lib_warp/imgui_warp.h>
 #include <utility>
@@ -58,8 +59,8 @@ bool create_project_dialog::render() {
   if (imgui::Button("ok")) {
     p_i->prj.set_path(p_i->path.parent_path());
     p_i->select_button_id().destroy();
-    g_reg()->ctx().at<database_n::file_translator_ptr>()->new_file_scene(p_i->path);
-    g_reg()->ctx().at<project>() = p_i->prj;
+    doodle_lib::Get().ctx().get<database_n::file_translator_ptr>()->new_file_scene(p_i->path);
+    g_reg()->ctx().get<project>() = p_i->prj;
     return false;
   }
   return true;
@@ -78,17 +79,28 @@ class close_exit_dialog::impl {
   std::string title{"退出"s};
 };
 bool close_exit_dialog::render() {
+  auto l_text_size = ImGui::CalcTextSize("是否退出?");
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + l_text_size.x);
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + l_text_size.y * 2);
+  //  ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
   ImGui::Text("是否退出?");
+  ImGui::SameLine();
+  ImGui::Dummy(l_text_size);
 
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + l_text_size.y);
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + l_text_size.x / 2);
   if (ImGui::Button("yes")) {
     ImGui::CloseCurrentPopup();
-
     quit();
   }
+  ImGui::SameLine();
+  ImGui::Dummy({l_text_size.x, l_text_size.y});
   ImGui::SameLine();
   if (ImGui::Button("no")) {
     ImGui::CloseCurrentPopup();
   }
+  ImGui::Dummy(l_text_size);
+  ImGui::Dummy(l_text_size);
   return open;
 }
 close_exit_dialog::close_exit_dialog() : p_i(std::make_unique<impl>()) {}

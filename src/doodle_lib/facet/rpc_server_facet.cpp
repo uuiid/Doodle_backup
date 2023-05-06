@@ -9,8 +9,6 @@
 #include "doodle_lib/distributed_computing/server.h"
 #include <doodle_lib/long_task/image_to_move.h>
 
-#include <boost/program_options.hpp>
-
 namespace doodle::facet {
 
 const std::string& rpc_server_facet::name() const noexcept { return name_; }
@@ -20,6 +18,6 @@ bool rpc_server_facet::post() {
   work_ = std::make_shared<decltype(work_)::element_type>(boost::asio::make_work_guard(g_io_context()));
   return true;
 }
-void rpc_server_facet::deconstruction() { server_attr.reset(); }
+rpc_server_facet::~rpc_server_facet() { server_attr.reset(); }
 
 }  // namespace doodle::facet

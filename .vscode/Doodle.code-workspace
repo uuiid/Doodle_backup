@@ -7,29 +7,6 @@
 	],
 	"settings": {
 		"git.autoRepositoryDetection": "subFolders",
-		"editor.tokenColorCustomizations": {
-			"textMateRules": [
-				{
-					"scope": "googletest.failed",
-					"settings": {
-						"foreground": "#f00"
-					}
-				},
-				{
-					"scope": "googletest.passed",
-					"settings": {
-						"foreground": "#0f0"
-					}
-				},
-				{
-					"scope": "googletest.run",
-					"settings": {
-						"foreground": "#0f0"
-					}
-				}
-			]
-		},
-		"todo-tree.tree.scanMode": "workspace only",
 		"python.envFile": "${workspaceFolder}/env.env",
 		"python.formatting.autopep8Args": [
 			"--ignore",
@@ -47,8 +24,13 @@
 			"${workspaceFolder}/script/maya/scripts",
 			"${workspaceFolder}/script/maya/scripts/scripts"
 		],
+		"clangd.arguments": [
+			"--compile-commands-dir=E:/Doodle/build/Ninja_RelWithDebInfo"
+		],
 		"editor.tabSize": 2,
 		"editor.fontLigatures": true,
+		"editor.formatOnType": true,
+		"editor.codeLensFontFamily": "'sarasa mono sc',Consolas, monospace",
 		"files.exclude": {
 			".idea": true,
 			".venv": true,
@@ -58,36 +40,8 @@
 		"C_Cpp.exclusionPolicy": "checkFolders",
 		"editor.formatOnSaveMode": "modifications",
 		"todo-tree.regex.regexCaseSensitive": false,
-		"todo-tree.regex.regex": "((@|//|#|<!--|;|/\\*|^)\\s*($TAGS)|^\\s*- \\[ \\])",
-		"todo-tree.tree.showBadges": false,
 		"git.fetchOnPull": true,
-		"todo-tree.tree.disableCompactFolders": true,
 		"C_Cpp.autocompleteAddParentheses": true,
-		"todo-tree.highlights.useColourScheme": true,
-		"terminal.integrated.scrollback": 9999,
-		"powershell.integratedConsole.forceClearScrollbackBuffer": false,
-		"terminal.integrated.profiles.windows": {
-			"PowerShell": {
-				"source": "PowerShell",
-				"icon": "terminal-powershell",
-				"args": [
-					"chcp 65001; powershell -NoLogo"
-				]
-			},
-			"Command Prompt": {
-				"path": [
-					"${env:windir}\\Sysnative\\cmd.exe",
-					"${env:windir}\\System32\\cmd.exe"
-				],
-				"args": [
-					"chcp 65001 &&"
-				],
-				"icon": "terminal-cmd"
-			},
-			"Git Bash": {
-				"source": "Git Bash"
-			}
-		},
 		"boost-test-adapter-feher.tests": [
 			{
 				"testExecutables": [
@@ -101,7 +55,6 @@
 			},
 		],
 		"C_Cpp.intelliSenseEngine": "disabled",
-		"editor.fontFamily": "'sarasa mono sc',Consolas, monospace",
 		"cmake.configureOnEdit": false,
 		"sqltools.useNodeRuntime": true
 	},

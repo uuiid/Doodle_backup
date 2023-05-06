@@ -108,11 +108,12 @@ if (DEFINED Maya_Version)
     find_package(OpenMP REQUIRED)
 
     if (TARGET maya::maya_all)
-        find_package(Qt5 COMPONENTS Core Widgets REQUIRED
-                HINTS ${MAYA_BASE_DIR})
         find_package(dem-bones CONFIG REQUIRED)
     endif ()
+    add_subdirectory(maya_plug_mll maya_plug_mll${Maya_Version})
+
     add_subdirectory(maya_plug maya_plug${Maya_Version})
+    add_subdirectory(exe_maya exe_maya${Maya_Version})
 endif ()
 
 add_subdirectory(photoshop_plug)

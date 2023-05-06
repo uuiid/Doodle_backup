@@ -13,6 +13,8 @@
 #include <doodle_app/doodle_app_fwd.h>
 #include <doodle_app/gui/main_proc_handle.h>
 
+#include <tuple>
+
 namespace doodle {
 
 /**
@@ -34,6 +36,13 @@ class app_command : public app_base {
     add_facet<Facet_Defaute>();
     (add_facet<Facet_>(), ...);
   };
+
+  app_command(int argc, const char* const argv[]) : app_command() {
+    for (auto&& val : facet_list) {
+      val->add_program_options();
+    }
+    doodle_lib::Get().ctx().get<program_options>().arg.parse(argc, argv);
+  }
   virtual ~app_command() override = default;
 
   static app_command& Get() { return *(dynamic_cast<app_command*>(self)); }
@@ -44,11 +53,6 @@ class app_command : public app_base {
 
  protected:
   virtual void post_constructor() override {
-    auto& l_opt = doodle_lib::Get().ctx().get<program_options>();
-    for (auto&& val : facet_list) {
-      val->add_program_options();
-    }
-    l_opt.command_line_parser();
     facet_list |= ranges::actions::remove_if([](app_facet_interface& in) { return !in->post(); });
   };
 

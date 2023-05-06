@@ -30,6 +30,8 @@
 #include <doodle_core/metadata/work_task.h>
 #include <doodle_core/pin_yin/convert.h>
 
+#include "doodle_app/app/app_command.h"
+
 #include <boost/test/unit_test.hpp>
 
 #include "sqlpp11/all_of.h"
@@ -67,7 +69,7 @@ void create_test_database() {
   {
     auto l_h = make_handle();
     l_h.emplace<doodle::database>();
-    l_h.emplace<doodle::shot>();
+    l_h.emplace<doodle::shot>(100, shot::shot_ab_enum::A);
   }
   {
     auto l_h = make_handle();
@@ -117,7 +119,7 @@ void create_test_database() {
   {
     auto l_h = make_handle();
     l_h.emplace<doodle::database>();
-    l_h.emplace<doodle::user>();
+    l_h.emplace<doodle::user>("test_user");
   }
   {
     auto l_h = make_handle();
@@ -133,19 +135,55 @@ BOOST_AUTO_TEST_CASE(test_sqlite3_save) {
     BOOST_TEST_INFO(fmt::format("{}", i.uuid()));
   }
 
-  g_reg()->ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
 }
 
 BOOST_AUTO_TEST_CASE(test_sqlite3_open) {
   FSys::remove("D:/test.sqlite");
   doodle_lib l_lib{};
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->open_(FSys::path{});
   create_test_database();
-  g_reg()->ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->save_("D:/test.sqlite");
 
-  g_reg()->ctx().get<file_translator_ptr>()->open_("D:/test.sqlite");
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->open_("D:/test.sqlite");
+  BOOST_TEST_CHECK(g_reg()->view<database>().size() == 14);
+  BOOST_TEST_CHECK(g_reg()->view<user>().size() == 1);
+  BOOST_TEST_CHECK(g_reg()->view<shot>().size() == 1);
 
   for (auto&& [e, i] : g_reg()->view<database>().each()) {
     BOOST_TEST_INFO(fmt::format("{}", i.uuid()));
   }
-  BOOST_TEST_CHECK(g_reg()->view<database>().size() == 14);
+
+  for (auto&& [e, i] : g_reg()->view<user>().each()) {
+    BOOST_TEST_CHECK(i.get_name() == "test_user");
+  }
+
+  for (auto&& [e, i] : g_reg()->view<shot>().each()) {
+    BOOST_TEST_CHECK(i.get_shot() == 100ll);
+  }
+}
+
+class null_facet {
+ public:
+  const std::string& name() const noexcept {
+    static std::string l_i{"null_facet"};
+    return l_i;
+  };
+  inline bool post() { return true; };
+  void add_program_options(){};
+};
+BOOST_AUTO_TEST_CASE(test_sqlite3_old_open_save) {
+  app_command<null_facet> l_App{};
+  FSys::copy(
+      R"(D:/test_file/cloth_test/JG_back_up.doodle_db)", "D:/test_file/cloth_test/JG.doodle_db",
+      FSys::copy_options::overwrite_existing
+  );
+  //  doodle_lib l_lib{};
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->open_("D:/test_file/cloth_test/JG.doodle_db");
+
+  for (auto&& [e, i] : g_reg()->view<database>().each()) {
+    BOOST_TEST_INFO(fmt::format("{}", i.uuid()));
+  }
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->save_("D:/test_file/cloth_test/JG2.doodle_db");
+  doodle_lib::Get().ctx().get<file_translator_ptr>()->open_("D:/test_file/cloth_test/JG2.doodle_db");
 }

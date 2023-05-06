@@ -6,19 +6,27 @@
 
 #include <doodle_core/core/core_set.h>
 #include <doodle_core/core/init_register.h>
-#include <doodle_core/platform/win/drop_manager.h>
 
 #include <doodle_app/app/app_command.h>
 #include <doodle_app/gui/base/ref_base.h>
 
+#include "imgui.h"
+#include "platform/win/drop_manager.h"
 #include "range/v3/action/remove_if.hpp"
 #include "range/v3/action/sort.hpp"
+#include "range/v3/algorithm/none_of.hpp"
 #include <any>
+#include <string_view>
 #include <utility>
 
 namespace doodle::gui {
 
 windows_manage& g_windows_manage() { return doodle_lib::Get().ctx().get<windows_manage>(); }
+
+windows_manage::layout_info::layout_info(doodle::gui::layout_init_arg& arg)
+    : init_arg_(std::make_shared<layout_init_arg>(std::move(arg))) {}
+
+std::string& windows_manage::layout_info::name() { return init_arg_->name_; }
 
 class windows_manage::warp_w {
  public:
@@ -31,12 +39,10 @@ class windows_manage::warp_w {
   explicit warp_w(windows_init_arg in_arg) : args_(std::move(in_arg)) {}
 
   bool render() {
-    //    std::call_once(once_flag_size_, [this]() { ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
-    //    });
-
     switch (args_.render_enum_) {
       case windows_init_arg::render_enum::kpopup:
-        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
+        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]}, ImGuiCond_Once);
+        //        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
         break;
       case windows_init_arg::render_enum::kbegin:
         //        break;
@@ -85,15 +91,7 @@ void windows_manage::tick() {
   }
   layout_->render();
 
-  if (*drop_manger_) {
-    dear::DragDropSource{ImGuiDragDropFlags_SourceExtern} && [&]() {
-      drop_list_files_ = drop_manger_->GetDropFiles();
-      ImGui::SetDragDropPayload(
-          doodle::doodle_config::drop_imgui_id.data(), &drop_list_files_, sizeof(std::vector<FSys::path>)
-      );
-      dear::Tooltip{} && [&]() { dear::Text(fmt::format("{}", fmt::join(drop_list_files_, "\n"))); };
-    };
-  }
+  drop_manger_->render();
 
   const render_guard l_g{this};
   const auto l_org_list = windows_list_.size();
@@ -167,6 +165,25 @@ void windows_manage::set_layout(gui::windows_layout&& in_windows) {
   }
 }
 
+void windows_manage::register_layout(gui::layout_init_arg& in_windows) {
+  BOOST_ASSERT(in_windows.layout_factory_);
+  BOOST_ASSERT(ranges::none_of(layout_list_, [&](const decltype(layout_list_)::value_type& in) -> bool {
+    return in->init_arg_->name_ == in_windows.name_;
+  }));
+
+  layout_list_.emplace_back(std::make_shared<layout_info>(in_windows));
+}
+void windows_manage::switch_layout(std::string_view in_name) {
+  if (auto l_it = ranges::find_if(
+          layout_list_,
+          [&](const decltype(layout_list_)::value_type& in) -> bool { return in->init_arg_->name_ == in_name; }
+      );
+      l_it != layout_list_.end()) {
+    render_layout_name_ = in_name;
+    set_layout((*l_it)->init_arg_->layout_factory_());
+  }
+}
+
 void windows_manage::show_windows(const std::string_view& in_info) {
   if (auto l_it = ranges::find_if(args_, [=](const windows_init_arg& in_arg) { return in_arg.title_ == in_info; });
       l_it != ranges::end(args_)) {
@@ -198,6 +215,14 @@ void windows_manage::open_windows(const std::string_view& in_info) {
 std::vector<std::tuple<std::reference_wrapper<std::string>, bool*>>& windows_manage::get_menu_windows_list() {
   return menu_list_;
 }
+
+std::vector<std::tuple<std::string_view, bool>> windows_manage::get_layout_list() {
+  return layout_list_ | ranges::views::transform([this](const decltype(layout_list_)::value_type& i) {
+           return std::make_tuple(std::string_view{i->init_arg_->name_}, render_layout_name_ == i->init_arg_->name_);
+         }) |
+         ranges::to_vector;
+}
+
 void windows_manage::gen_windows_list() {
   menu_list_.clear();
   for (auto&& i : args_) {

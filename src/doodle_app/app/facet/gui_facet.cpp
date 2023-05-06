@@ -12,7 +12,6 @@
 #include <doodle_core/core/util.h>
 #include <doodle_core/database_task/sqlite_client.h>
 #include <doodle_core/gui_template/show_windows.h>
-#include <doodle_core/platform/win/drop_manager.h>
 
 #include <doodle_app/app/program_options.h>
 #include <doodle_app/gui/base/base_window.h>
@@ -29,6 +28,7 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/locale.hpp>
 
+#include "platform/win/drop_manager.h"
 #include <gui/get_input_dialog.h>
 #include <gui/main_menu_bar.h>
 #include <gui/main_proc_handle.h>
@@ -92,7 +92,7 @@ void gui_facet::deconstruction() {
   ImGui_ImplWin32_Shutdown();
   ImPlot::DestroyContext();
   ImGui::DestroyContext();
-  g_reg()->ctx().at<std::shared_ptr<win::d3d_device>>().reset();
+  g_reg()->ctx().get<std::shared_ptr<win::d3d_device>>().reset();
 
   ::RevokeDragDrop(p_hwnd);
   ::DestroyWindow(p_hwnd);
@@ -208,9 +208,8 @@ void gui_facet::init_windows() {
   /// 启用文件拖拽
   DragAcceptFiles(p_hwnd, 1);
   /// \brief 注册拖放对象
-  p_i->dorp_manager = new win::drop_manager{
-      [this](DWORD grfKeyState, POINTL ptl) { external_update_mouse_coordinates(grfKeyState, ptl); }};
-  auto k_r = ::RegisterDragDrop(p_hwnd, p_i->dorp_manager.get());
+  p_i->dorp_manager = new win::drop_manager{};
+  auto k_r          = ::RegisterDragDrop(p_hwnd, p_i->dorp_manager.get());
   DOODLE_CHICK(k_r == S_OK, doodle_error{"无法注册拖拽com"});
 
   //  HMONITOR hmon  = MonitorFromWindow(p_impl->p_hwnd,
@@ -253,7 +252,7 @@ void gui_facet::init_windows() {
 
   static std::function<void()> s_set_title_fun{};
   s_set_title_fun = [this]() {
-    auto& l_prj  = g_reg()->ctx().at<project>();
+    auto& l_prj  = g_reg()->ctx().get<project>();
     auto l_title = boost::locale::conv::utf_to_utf<char>(doodle_lib::Get().ctx().get<program_info>().title_attr());
     auto l_str   = fmt::format(
         "{0} 文件 {1} 项目路径 {2} 名称: {3}({4})({5})", l_title, doodle_lib::Get().ctx().get<database_info>().path_,
@@ -261,24 +260,18 @@ void gui_facet::init_windows() {
     );
     set_title(l_str);
   };
-  g_reg()->ctx().at<core_sig>().project_end_open.connect(s_set_title_fun);
-  g_reg()->ctx().at<core_sig>().save.connect(3, s_set_title_fun);
+  g_reg()->ctx().get<core_sig>().project_end_open.connect(s_set_title_fun);
+  g_reg()->ctx().get<core_sig>().save.connect(3, s_set_title_fun);
   auto& k_sig = g_reg()->ctx().emplace<core_sig>();
   k_sig.save.connect(2, [this]() {
-    std::make_shared<database_n::sqlite_file>()->async_save(
+    doodle_lib::Get().ctx().get<database_n::file_translator_ptr>()->async_save(
         doodle_lib::Get().ctx().get<database_info>().path_,
         [this](auto) { DOODLE_LOG_INFO("保存项目 {}", doodle_lib::Get().ctx().get<database_info>().path_); }
     );
   });
   /// 在这里我们加载项目
-  if (doodle_lib::Get().ctx().contains<program_options>()) {
-    auto& l_op = doodle_lib::Get().ctx().get<program_options>();
-    ::doodle::app_base::Get().load_project(
-        !l_op.p_project_path.empty() ? l_op.p_project_path : core_set::get_set().project_root[0]
-    );
-  } else {
-    ::doodle::app_base::Get().load_project(core_set::get_set().project_root[0]);
-  }
+  doodle_lib::Get().ctx().get<program_options>().init_project();
+
   s_set_title_fun();
   boost::asio::post(g_io_context(), [this]() { this->load_windows(); });
 }
@@ -307,21 +300,8 @@ void gui_facet::set_title(const std::string& in_title) const {
     SetWindowTextW(p_hwnd, l_str.c_str());
   });
 }
-gui_facet::~gui_facet() = default;
+gui_facet::~gui_facet() { deconstruction(); };
 void gui_facet::destroy_windows() { ::PostQuitMessage(0); }
-
-void gui_facet::external_update_mouse_coordinates(DWORD grfKeyState, POINTL in_point) {
-  ImGuiIO& io = ImGui::GetIO();
-  //  bool const want_absolute_pos = (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
-  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
-  io.AddMousePosEvent(boost::numeric_cast<std::float_t>(in_point.x), boost::numeric_cast<std::float_t>(in_point.y));
-  io.AddFocusEvent(true);
-
-  //  io.AddMouseButtonEvent(ImGuiButtonFlags_MouseButtonLeft, true);
-
-  //  io.AddKeyEvent(key, down);
-  //  io.SetKeyEventNativeData(key, native_keycode, native_scancode); // To support legacy indexing (<1.87 user code)
-}
 
 win::drop_manager* gui_facet::drop_manager() { return p_i->dorp_manager.get(); }
 }  // namespace doodle::facet
