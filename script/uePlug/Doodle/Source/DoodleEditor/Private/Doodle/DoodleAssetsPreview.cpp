@@ -18,7 +18,7 @@ ADoodleAssetsPreview::ADoodleAssetsPreview() {
 
   SkyLight->SetCubemap(CubemapMap.Object);
   SkyLight->SourceType = ESkyLightSourceType::SLS_SpecifiedCubemap;
-  SkyLight->SetSourceCubemapAngle(60.f);
+  SkyLight->SourceCubemapAngle      = 60.0f;
   SkyLight->SkyDistanceThreshold    = 1.f;
   SkyLight->bLowerHemisphereIsBlack = false;
   SkyLight->SetCastRaytracedShadow(true);
@@ -45,23 +45,13 @@ ADoodleAssetsPreview::ADoodleAssetsPreview() {
 
   PostProcess->Settings.bOverride_FilmToe                                 = true;
   PostProcess->Settings.FilmToe                                           = 0.5f;
-  PostProcess->Settings.bOverride_DynamicGlobalIlluminationMethod         = true;
-  PostProcess->Settings.DynamicGlobalIlluminationMethod                   = EDynamicGlobalIlluminationMethod::Lumen;
-  PostProcess->Settings.bOverride_LumenSceneDetail                        = true;
-  PostProcess->Settings.LumenSceneDetail                                  = 4.f;
-  PostProcess->Settings.bOverride_LumenFinalGatherQuality                 = true;
-  PostProcess->Settings.LumenFinalGatherQuality                           = 4.f;
+ 
 
   PostProcess->Settings.bOverride_RayTracingGI                            = true;
   PostProcess->Settings.RayTracingGIType                                  = ERayTracingGlobalIlluminationType::BruteForce;
   PostProcess->Settings.bOverride_RayTracingGISamplesPerPixel             = true;
   PostProcess->Settings.RayTracingGISamplesPerPixel                       = 8;
-  PostProcess->Settings.bOverride_ReflectionMethod                        = true;
-  PostProcess->Settings.ReflectionMethod                                  = EReflectionMethod::Lumen;
-  PostProcess->Settings.bOverride_LumenRayLightingMode                    = true;
-  PostProcess->Settings.LumenRayLightingMode                              = ELumenRayLightingModeOverride::HitLighting;
-  PostProcess->Settings.bOverride_LumenFrontLayerTranslucencyReflections  = true;
-  PostProcess->Settings.LumenFrontLayerTranslucencyReflections            = false;
+ 
   PostProcess->Settings.bOverride_ScreenSpaceReflectionIntensity          = true;
   PostProcess->Settings.ScreenSpaceReflectionIntensity                    = 100.f;
   PostProcess->Settings.bOverride_RayTracingReflectionsMaxBounces         = true;
@@ -101,10 +91,8 @@ ADoodleAssetsPreview::ADoodleAssetsPreview() {
 
   DirectionalLight->SetDynamicShadowCascades(3);
   DirectionalLight->DistanceFieldShadowDistance       = 30000.f;
-  DirectionalLight->bAtmosphereSunLight               = false;
   DirectionalLight->bUseRayTracedDistanceFieldShadows = false;
   DirectionalLight->SamplesPerPixel                   = 8;
-  DirectionalLight->ForwardShadingPriority            = 100;
   DirectionalLight->SetRelativeLocation(FVector{0.f, 0.f, -550.f});
   DirectionalLight->SetupAttachment(RootComponent);
 
@@ -325,18 +313,18 @@ void ADoodleAssetsPreview::SwitchConsole() {
 }
 
 void ADoodleAssetsPreview::TurnLighting_Fun() {
-  SkyLight->SetSourceCubemapAngle(60.f - TurnLighting);
+  SkyLight->SourceCubemapAngle = 60.f - TurnLighting;
   SkyLight->MarkRenderStateDirty();
   FQuat L_Quat{FVector::ZAxisVector, TurnLighting};
   switch (LightingScenarios) {
     case EDoodleAssetsPreviewLightModel::LowContrast: {
-      L_Quat *= FQuat::MakeFromRotator({-71.685211f, 250.879517f, 32.971264f});
+      L_Quat *= FQuat::MakeFromEuler({-71.685211f, 250.879517f, 32.971264f});
     } break;
     case EDoodleAssetsPreviewLightModel::MidContrast: {
-      L_Quat *= FQuat::MakeFromRotator({-45.999348f, 250.000214f, 0.000088f});
+      L_Quat *= FQuat::MakeFromEuler({-45.999348f, 250.000214f, 0.000088f});
     } break;
     case EDoodleAssetsPreviewLightModel::HighContrast: {
-      L_Quat *= FQuat::MakeFromRotator({-60.f, -110.500160f, 12.080514f});
+      L_Quat *= FQuat::MakeFromEuler({-60.f, -110.500160f, 12.080514f});
     } break;
     default:
       break;

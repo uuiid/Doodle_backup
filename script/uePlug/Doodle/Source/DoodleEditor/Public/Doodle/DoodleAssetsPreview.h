@@ -36,7 +36,7 @@ class DOODLEEDITOR_API ADoodleAssetsPreview : public AActor {
   EDoodleAssetsPreviewLightModel LightingScenarios;
   // 背景
   UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Moods")
-  double BackgroundValueCompensation;
+  float BackgroundValueCompensation;
   // 光阴影
   UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Moods", meta = (MultiLine = "true"))
   bool RaytracingShadow;
@@ -48,7 +48,7 @@ class DOODLEEDITOR_API ADoodleAssetsPreview : public AActor {
   bool UseHardWareRaytracing;
   // 曝光补偿
   UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Moods", meta = (MultiLine = "true", UIMin = "-15.0", UIMax = "15.0"))
-  double ExposureCompensation;
+  float ExposureCompensation;
   // 接地
   UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Moods")
   bool Grounded;
