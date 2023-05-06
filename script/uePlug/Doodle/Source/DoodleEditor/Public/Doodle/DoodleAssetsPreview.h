@@ -73,21 +73,21 @@ class DOODLEEDITOR_API ADoodleAssetsPreview : public AActor {
 
  private:
   UPROPERTY()
-  TObjectPtr<USkyLightComponent> SkyLight;
+  USkyLightComponent* SkyLight;
   UPROPERTY()
-  TObjectPtr<UPostProcessComponent> PostProcess;
+  UPostProcessComponent* PostProcess;
   UPROPERTY()
-  TObjectPtr<UDirectionalLightComponent> DirectionalLight;
+  UDirectionalLightComponent* DirectionalLight;
   UPROPERTY()
-  TObjectPtr<UStaticMeshComponent> SkyDome;
+  UStaticMeshComponent* SkyDome;
   UPROPERTY()
-  TObjectPtr<USceneComponent> RootStaticMeshs;
+  USceneComponent* RootStaticMeshs;
   UPROPERTY()
-  TArray<TObjectPtr<UStaticMeshComponent>> StaticMeshs;
+  TArray<UStaticMeshComponent*> StaticMeshs;
   UPROPERTY()
-  TObjectPtr<UMaterialInstanceDynamic> PBR_Mat_Inst;
+  UMaterialInstanceDynamic* PBR_Mat_Inst;
   UPROPERTY()
-  TObjectPtr<UMaterialInstanceDynamic> SkyDome_Mat_Inst;
+  UMaterialInstanceDynamic* SkyDome_Mat_Inst;
 
   void SwitchLight(EDoodleAssetsPreviewLightModel InModel);
   void PBRChecker(bool InIsEnable);
