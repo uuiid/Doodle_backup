@@ -28,7 +28,7 @@ class DOODLE_API UDoodleAiSplineMoveToComponent : public UActorComponent {
 
   void GoToRandomWaypoint();
 
-  void ReplaceSplineCurve(const USplineComponent *In_Tmp, const FTransform &In_Loc);
+  void ReplaceSplineCurve(USplineComponent *In_Tmp, const FTransform &In_Loc);
 
  private:
   // UFUNCTION(BlueprintCallable)

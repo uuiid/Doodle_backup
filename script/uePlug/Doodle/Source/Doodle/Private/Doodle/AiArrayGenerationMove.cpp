@@ -85,7 +85,7 @@ bool ADoodleAiArrayGenerationMove::ShouldTickIfViewportsOnly() const {
 }
 
 void ADoodleAiArrayGenerationMove::BeginPlay() {
-  if (AnimAssets.IsEmpty() || SkinAssets.IsEmpty()) return;
+  if (AnimAssets.Num() != 0 || SkinAssets.Num() != 0) return;
 
   int32 L_Max_Skin = FMath::Max(0, SkinAssets.Num() - 1);
   TMap<USkeleton*, TArray<UAnimationAsset*>> L_Map{};
@@ -130,7 +130,7 @@ void ADoodleAiArrayGenerationMove::BeginPlay() {
         Cast<UCharacterMovementComponent>(L_Actor->GetMovementComponent());
     if (CharacterMovementComponent) {
       CharacterMovementComponent->MaxAcceleration = MaxAcceleration;
-      CharacterMovementComponent->MaxWalkSpeed                 = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
+      CharacterMovementComponent->MaxWalkSpeed    = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
       CharacterMovementComponent->GroundFriction               = 0.2f;
       CharacterMovementComponent->RotationRate                 = {0.0f, 180.0f, 0.0f};
       CharacterMovementComponent->bOrientRotationToMovement    = true;
@@ -146,19 +146,18 @@ void ADoodleAiArrayGenerationMove::GenPoint() {
   if (!NavSys) {
     return;
   }
-  if (NavSys->MainNavData == nullptr)
-    return;
+  if (NavSys->MainNavData == nullptr) return;
   // RandomStream.Initialize();
   // RandomStream.RandRange(0, 10);
   Points.Empty(Row * Column);
   Preview_InstancedStaticMeshComponent->ClearInstances();
   Preview_InstancedStaticMeshComponent->SetStaticMesh(Preview_Mesh);
 
-  FBox L_Box_                  = SplineComponent->GetLocalBounds().TransformBy(GetTransform()).GetBox();
+  FBox L_Box_                  = SplineComponent->Bounds.GetBox();
   FVector L_Row_Step           = L_Box_.GetSize();
-  double L_Row_Step_X          = L_Row_Step.X / FMath::Clamp((double)Row, 1.0, 1000.0);
-  double L_Row_Step_Y          = L_Row_Step.Y / FMath::Clamp((double)Column, 1.0, 1000.0);
-  double L_Max                 = L_Row_Step.GetAbsMax() / FMath::Clamp((double)FMath::Max(Row, Column), 1.0, 1000.0);
+  float L_Row_Step_X           = L_Row_Step.X / FMath::Clamp((float)Row, 1.0f, 1000.0f);
+  float L_Row_Step_Y           = L_Row_Step.Y / FMath::Clamp((float)Column, 1.0f, 1000.0f);
+  float L_Max                  = L_Row_Step.GetAbsMax() / FMath::Clamp((float)FMath::Max(Row, Column), 1.0f, 1000.0f);
 
   const FVector L_Preview_Size = FVector{L_Max, L_Max, L_Max} / 20;
   Target->SetRelativeScale3D(L_Preview_Size / 10);
@@ -167,8 +166,8 @@ void ADoodleAiArrayGenerationMove::GenPoint() {
   // DrawDebugLine(GetWorld(), GetActorTransform().GetLocation(), GetActorTransform().GetLocation() + L_Vector * 50,
   // FColor::Red, false, 10.f);
 
-  for (auto x = 0.0; x <= FMath::Clamp(Row, 1, 1000); ++x) {
-    for (auto y = 0.0; y <= FMath::Clamp(Column, 1, 1000); ++y) {
+  for (auto x = 0.0f; x <= FMath::Clamp(Row, 1, 1000); ++x) {
+    for (auto y = 0.0f; y <= FMath::Clamp(Column, 1, 1000); ++y) {
       FVector L_Point     = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
       const float L_Param = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
       FVector2D L_RightVector_2D{
@@ -191,7 +190,7 @@ void ADoodleAiArrayGenerationMove::GenPoint() {
             FTransform L_Ftran{GetRandomOrient(L_Point_Out), L_Point_Out};
             Points.Add(L_Ftran);
 
-            Preview_InstancedStaticMeshComponent->AddInstance(L_Ftran, true);
+            Preview_InstancedStaticMeshComponent->AddInstanceWorldSpace(L_Ftran);
             // DrawDebugPoint(GetWorld(), L_Point_Out, 10.0f, FColor::Green, false, 1.0f);
           }
         }
@@ -207,7 +206,7 @@ FQuat ADoodleAiArrayGenerationMove::GetRandomOrient(const FVector& In_Origin) {
 }
 
 FQuat ADoodleAiArrayGenerationMove::GetRandomOrient(const FVector& In_Origin, const FVector& In_Look) {
-  static constexpr double Pi = 3.1415926535897932384626433832795;
+  static constexpr float Pi = 3.1415926535897932384626433832795;
   FQuat L_R{FQuat::Identity};
 
   FVector L_Origin{In_Origin.X, In_Origin.Y, 0.0};
@@ -217,7 +216,8 @@ FQuat ADoodleAiArrayGenerationMove::GetRandomOrient(const FVector& In_Origin, co
 
   FQuat G_R{FVector::UpVector, -0.5 * Pi};
 
-  G_R *= FQuat{FVector::UpVector, (((double)RandomStream_Orient.RandRange(RandomOrient.X * 100, RandomOrient.Y * 100)) / 100) * Pi};
+  G_R *= FQuat{
+      FVector::UpVector, ((RandomStream_Orient.RandRange(RandomOrient.X * 100, RandomOrient.Y * 100)) / 100) * Pi};
 
   return G_R * L_Loc.ToOrientationQuat();
 }

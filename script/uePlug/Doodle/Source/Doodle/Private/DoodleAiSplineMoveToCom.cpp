@@ -144,7 +144,7 @@ void UDoodleAiSplineMoveToComponent::GoToRandomWaypoint() {
   // }
 }
 
-void UDoodleAiSplineMoveToComponent::ReplaceSplineCurve(const USplineComponent *In_Tmp, const FTransform &In_Loc) {
+void UDoodleAiSplineMoveToComponent::ReplaceSplineCurve(USplineComponent *In_Tmp, const FTransform &In_Loc) {
   USceneComponent *L_Parent = SplineCurve->GetAttachParent();
   SplineCurve->UnregisterComponent();
   SplineCurve->DestroyComponent();

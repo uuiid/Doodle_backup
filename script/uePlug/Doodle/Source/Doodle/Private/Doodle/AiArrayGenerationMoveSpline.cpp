@@ -80,7 +80,7 @@ bool ADoodleAiArrayGenerationMoveSpline::ShouldTickIfViewportsOnly() const {
 }
 
 void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
-  if (AnimAssets.IsEmpty() || SkinAssets.IsEmpty()) return;
+  if (AnimAssets.Num() != 0 || SkinAssets.Num() != 0) return;
 
   int32 L_Max_Skin = FMath::Max(0, SkinAssets.Num() - 1);
   TMap<USkeleton*, TArray<UAnimationAsset*>> L_Map{};
@@ -95,7 +95,7 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
   FActorSpawnParameters L_ActorSpawnParameters{};
   L_ActorSpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
   for (auto&& i : Points) {
-    auto L_Loc                      = i.GetLocation();
+    auto L_Loc = i.GetLocation();
     // L_Loc.Z += 70;
     ADoodleAiSplineCrowd* L_Actor =
         GetWorld()->SpawnActor<ADoodleAiSplineCrowd>(L_Loc, i.GetRotation().Rotator(), L_ActorSpawnParameters);
@@ -125,7 +125,7 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
         Cast<UCharacterMovementComponent>(L_Actor->GetMovementComponent());
     if (CharacterMovementComponent) {
       CharacterMovementComponent->MaxAcceleration = MaxAcceleration;
-      CharacterMovementComponent->MaxWalkSpeed                 = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
+      CharacterMovementComponent->MaxWalkSpeed    = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
       CharacterMovementComponent->GroundFriction               = 0.2f;
       CharacterMovementComponent->RotationRate                 = {0.0f, 180.0f, 0.0f};
       CharacterMovementComponent->bOrientRotationToMovement    = true;
@@ -141,24 +141,23 @@ void ADoodleAiArrayGenerationMoveSpline::GenPoint() {
   if (!NavSys) {
     return;
   }
-  if (NavSys->MainNavData == nullptr)
-    return;
+  if (NavSys->MainNavData == nullptr) return;
   // RandomStream.Initialize();
   // RandomStream.RandRange(0, 10);
   Points.Empty(Row * Column);
   Preview_InstancedStaticMeshComponent->ClearInstances();
   Preview_InstancedStaticMeshComponent->SetStaticMesh(Preview_Mesh);
 
-  FBox L_Box_         = SplineComponent->GetLocalBounds().TransformBy(GetTransform()).GetBox();
-  FVector L_Row_Step  = L_Box_.GetSize();
-  double L_Row_Step_X = L_Row_Step.X / FMath::Clamp((double)Row, 1.0, 1000.0);
-  double L_Row_Step_Y = L_Row_Step.Y / FMath::Clamp((double)Column, 1.0, 1000.0);
+  FBox L_Box_        = SplineComponent->Bounds.GetBox();
+  FVector L_Row_Step = L_Box_.GetSize();
+  float L_Row_Step_X = L_Row_Step.X / FMath::Clamp((float)Row, 1.0f, 1000.0f);
+  float L_Row_Step_Y = L_Row_Step.Y / FMath::Clamp((float)Column, 1.0f, 1000.0f);
 
   // DrawDebugLine(GetWorld(), GetActorTransform().GetLocation(), GetActorTransform().GetLocation() + L_Vector * 50,
   // FColor::Red, false, 10.f);
 
-  for (auto x = 0.0; x <= FMath::Clamp(Row, 1, 1000); ++x) {
-    for (auto y = 0.0; y <= FMath::Clamp(Column, 1, 1000); ++y) {
+  for (auto x = 0.0f; x <= FMath::Clamp(Row, 1, 1000); ++x) {
+    for (auto y = 0.0f; y <= FMath::Clamp(Column, 1, 1000); ++y) {
       FVector L_Point     = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
       const float L_Param = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
       FVector2D L_RightVector_2D{
@@ -182,7 +181,7 @@ void ADoodleAiArrayGenerationMoveSpline::GenPoint() {
             FTransform L_Ftran{TargetSpline->GetTangentAtSplinePoint(0, ESplineCoordinateSpace::Type::World).ToOrientationQuat(), L_Point_Out};
             Points.Add(L_Ftran);
 
-            Preview_InstancedStaticMeshComponent->AddInstance(L_Ftran, true);
+            Preview_InstancedStaticMeshComponent->AddInstanceWorldSpace(L_Ftran);
             // DrawDebugPoint(GetWorld(), L_Point_Out, 10.0f, FColor::Green, false, 1.0f);
           }
         }

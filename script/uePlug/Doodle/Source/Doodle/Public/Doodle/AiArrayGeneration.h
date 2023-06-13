@@ -125,5 +125,4 @@ class DOODLE_API ADoodleAiArrayGeneration : public AActor {
   bool GetRandomPointInRadius(const FVector &Origin, FVector &OutResult);
 
   virtual void OnConstruction(const FTransform &Transform) override;
-  void K_Means_Clustering();
 };
