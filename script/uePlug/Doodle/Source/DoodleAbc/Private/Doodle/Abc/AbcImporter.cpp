@@ -19,7 +19,6 @@ THIRD_PARTY_INCLUDES_END
 #include "Doodle/Abc/AbcFile.h"
 #include "Doodle/Abc/AbcImportUtilities.h"
 #include "Doodle/Abc/DoodleAbcAssetImportData.h"
-#include "Doodle/Abc/EigenHelper.h"
 #include "Editor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
