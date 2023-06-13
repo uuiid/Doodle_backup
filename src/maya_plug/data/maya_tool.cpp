@@ -6,6 +6,7 @@
 
 #include <maya_plug/main/maya_plug_fwd.h>
 
+#include "exception/exception.h"
 #include "maya/MApiNamespace.h"
 #include "maya_conv_str.h"
 #include <maya/MDagPath.h>
@@ -14,14 +15,14 @@
 #include <maya/MItDependencyGraph.h>
 #include <maya/MItSelectionList.h>
 #include <maya/MNamespace.h>
+#include <maya/MObject.h>
 #include <maya/MPlug.h>
+#include <maya/MStatus.h>
+#include <maya/MTime.h>
+#include <vector>
 
 namespace doodle::maya_plug {
-namespace m_namespace {
-std::string strip_namespace_from_name(const std::string& in_full_name) {
-  return conv::to_s(MNamespace::stripNamespaceFromName(conv::to_ms(in_full_name)));
-}
-}  // namespace m_namespace
+
 MPlug get_plug(const MObject& in_node, const std::string& in_name) {
   in_node.isNull() ? throw_exception(doodle_error{"传入空节点寻找属性 {}"s, in_name}) : void();
   MStatus k_s{};
@@ -75,6 +76,31 @@ MPlug get_plug(const MObject& in_node, const std::string& in_name) {
   DOODLE_CHICK(!l_plug.isNull(), doodle_error{" {} 无法找到属性 {}", get_node_name(in_node), in_name});
   return l_plug;
 }
+
+bool is_intermediate(const MObject& in_node) {
+  auto l_plug = get_plug(in_node, "intermediateObject"s);
+  return !l_plug.isNull() && l_plug.asBool();
+}
+bool is_renderable(const MObject& in_node) {
+  auto l_template = get_plug(in_node, "template"s);
+  if (!l_template.isNull() && l_template.asBool()) {
+    return false;
+  }
+
+  auto l_plug = get_plug(in_node, "visibility"s);
+  if (!l_plug.isNull()) {
+    if (!l_plug.asBool()) return false;
+
+    MPlugArray l_plug_array{};
+    MStatus l_s;
+    l_plug.connectedTo(l_plug_array, true, false, &l_s);
+    maya_chick(l_s);
+    if (l_plug_array.length() == 0) return false;
+  }
+  auto l_lod = get_plug(in_node, "lodVisibility"s);
+  return l_lod.isNull() || l_lod.asBool();
+}
+
 MObject get_shading_engine(const MObject& in_node) { return get_shading_engine(get_dag_path(in_node)); }
 MObject get_shading_engine(const MDagPath& in_node) {
   MStatus k_s{};
@@ -100,6 +126,29 @@ MObject get_shading_engine(const MDagPath& in_node) {
   DOODLE_CHICK(!obj.isNull(), doodle_error{"没有找到节点"});
   return obj;
 }
+
+std::vector<MObject> get_shading_engines(const MDagPath& in_node) {
+  MStatus k_s{};
+  auto l_path = in_node;
+  k_s         = l_path.extendToShape();
+  DOODLE_MAYA_CHICK(k_s);
+  MObject k_obj = l_path.node(&k_s);
+  DOODLE_MAYA_CHICK(k_s);
+  std::vector<MObject> l_list_out{};
+  MObject obj{};
+  {
+    for (MItDependencyGraph i{
+             k_obj, MFn::Type::kShadingEngine, MItDependencyGraph::Direction::kDownstream,
+             MItDependencyGraph::Traversal::kDepthFirst, MItDependencyGraph::Level::kNodeLevel, &k_s};
+         !i.isDone(); i.next()) {
+      obj = i.currentItem(&k_s);
+      maya_chick(k_s);
+      l_list_out.push_back(obj);
+    }
+  }
+  return l_list_out;
+}
+
 MObject get_first_mesh(const MObject& in_node) {
   MStatus k_s{};
   MObject k_obj = in_node;
@@ -247,6 +296,30 @@ std::string get_node_name_strip_name_space(const MDagPath& in_obj) {
   DOODLE_MAYA_CHICK(l_s);
   return d_str{l_name};
 }
+
+namespace details {
+MObject shading_engine_to_mat(const MObject& in_shading_engine) {
+  MStatus k_s{};
+  auto k_plug = get_plug(in_shading_engine, "surfaceShader"s);
+
+  MPlugArray l_m_plug_array{};
+  auto k_source = k_plug.source(&k_s);
+  maya_chick(k_s);
+  if (k_source.isNull(&k_s)) {
+    return {};
+  }
+  maya_chick(k_s);
+  auto k_mat = k_source.node(&k_s);  /// \brief 从属性链接获得材质名称
+  maya_chick(k_s);
+  return k_mat;
+}
+
+double spf() {
+  static const MTime sec(1.0, MTime::kSeconds);
+  return 1.0 / sec.as(MTime::uiUnit());
+}
+
+}  // namespace details
 
 namespace comm_warp {
 MDagPath marge_mesh(const MSelectionList& in_marge_obj, const std::string& in_marge_name) {

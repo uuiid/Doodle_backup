@@ -16,6 +16,7 @@
 #include "range/v3/action/sort.hpp"
 #include "range/v3/algorithm/none_of.hpp"
 #include <any>
+#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -37,6 +38,7 @@ class windows_manage::warp_w {
   gui_cache_name_id title{};
 
   explicit warp_w(windows_init_arg in_arg) : args_(std::move(in_arg)) {}
+  ~warp_w() { *args_.init_show_ = false; }
 
   bool render() {
     switch (args_.render_enum_) {
@@ -73,13 +75,13 @@ class windows_manage::warp_w {
     }
 
     if (win_render) {
-      win_render->render();
+      l_show = win_render->render();
     } else {
       win_render = std::move((*args_.create_factory_)());
       win_render->render();
     }
 
-    return *args_.init_show_;
+    return *args_.init_show_ && l_show;
   };
 };
 
@@ -96,9 +98,7 @@ void windows_manage::tick() {
   const render_guard l_g{this};
   const auto l_org_list = windows_list_.size();
   windows_list_ |= ranges::actions::remove_if([](const warp_w_ptr& in_) { return !in_->render(); });
-  const auto l_has_clear = l_org_list != windows_list_.size();
 
-  const auto has_next    = !windows_list_next_.empty();
   windows_list_ |= ranges::actions::push_back(windows_list_next_);
   windows_list_next_.clear();
 }
@@ -134,10 +134,10 @@ void windows_manage::create_windows_arg(const windows_init_arg& in_arg) {
 
   if (!*l_arg.init_show_) return;
 
-  if (is_render_tick_p_)
-    set_menu_list(windows_list_next_.emplace_back(std::make_shared<warp_w>(l_arg)));
-  else {
-    set_menu_list(windows_list_.emplace_back(std::make_shared<warp_w>(l_arg)));
+  if (is_render_tick_p_) {
+    windows_list_next_.emplace_back(std::make_shared<warp_w>(l_arg));
+  } else {
+    windows_list_.emplace_back(std::make_shared<warp_w>(l_arg));
   }
 }
 
@@ -145,22 +145,13 @@ bool windows_manage::has_windows(const std::string_view& in_info) {
   return ranges::any_of(windows_list_next_, [&](const warp_w_ptr& i) { return i->args_.title_ == in_info; }) ||
          ranges::any_of(windows_list_, [&](const warp_w_ptr& i) { return i->args_.title_ == in_info; });
 }
-void windows_manage::set_menu_list(const warp_w_ptr& win_ptr) {
-  //  if (auto l_it = ranges::find_if(
-  //          menu_list_,
-  //          [=](const decltype(menu_list_)::value_type& in_) { return std::get<0>(in_).get() == win_ptr->args_.title_;
-  //          }
-  //      );
-  //      l_it != ranges::end(menu_list_)) {
-  //    std::get<bool*>(*l_it) = win_ptr->args_.init_show_.get();
-  //  }
-}
 
 void windows_manage::set_layout(gui::windows_layout&& in_windows) {
   BOOST_ASSERT(in_windows);
-  if (!layout_)
+  if (!layout_) {
     layout_ = std::move(in_windows);
-  else {
+    layout_->set_show();
+  } else {
     layout_next_ = std::move(in_windows);
   }
 }
@@ -189,10 +180,10 @@ void windows_manage::show_windows(const std::string_view& in_info) {
       l_it != ranges::end(args_)) {
     auto l_arg        = *l_it;
     *l_arg.init_show_ = true;
-    if (is_render_tick_p_)
-      set_menu_list(windows_list_next_.emplace_back(std::make_shared<warp_w>(l_arg)));
-    else {
-      set_menu_list(windows_list_.emplace_back(std::make_shared<warp_w>(l_arg)));
+    if (is_render_tick_p_) {
+      windows_list_next_.emplace_back(std::make_shared<warp_w>(l_arg));
+    } else {
+      windows_list_.emplace_back(std::make_shared<warp_w>(l_arg));
     }
   }
 }

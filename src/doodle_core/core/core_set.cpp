@@ -8,6 +8,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/dll.hpp>
 
+#include "configure/static_value.h"
 #include <ShlObj.h>
 
 namespace doodle {
@@ -41,21 +42,14 @@ core_set &core_set::get_set() {
   return install;
 }
 
-bool core_set::has_maya() const noexcept { return !p_mayaPath.empty(); }
-
-const FSys::path &core_set::maya_path() const noexcept { return p_mayaPath; }
-
 core_set::core_set()
     : user_id(),
-      organization_name(),
       p_doc(FSys::current_path()),
-      p_uuid_gen(),
-      p_mayaPath(),
       p_max_thread(std::thread::hardware_concurrency() - 2),
       p_root(FSys::temp_directory_path() / "Doodle"),
       _root_cache(p_root / "cache"),
-      _root_data(p_root / "data"),
       timeout(3600),
+      maya_version(2019),
       json_data(std::make_shared<nlohmann::json>()) {
   auto l_short_path = FSys::temp_directory_path().generic_wstring();
   auto k_buff_size  = GetLongPathNameW(l_short_path.c_str(), nullptr, 0);
@@ -80,7 +74,6 @@ FSys::path core_set::get_doc() const { return p_doc; }
 void core_set::set_root(const FSys::path &in_root) {
   p_root      = in_root;
   _root_cache = p_root / "cache";
-  _root_data  = p_root / "data";
 }
 
 FSys::path core_set::get_cache_root() const { return _root_cache; }
@@ -91,13 +84,8 @@ FSys::path core_set::get_cache_root(const FSys::path &in_path) const {
   return path;
 }
 
-FSys::path core_set::get_data_root() const { return _root_data; }
-
 FSys::path core_set::program_location() { return program_location_attr.parent_path(); }
-std::string core_set::config_file_name() {
-  static std::string str{"doodle_config"};
-  return str;
-}
+
 std::string core_set::get_uuid_str() { return boost::uuids::to_string(get_uuid()); }
 
 /// ----------------------------------------------------------------------------
@@ -109,29 +97,12 @@ core_set_init::core_set_init() : p_set(core_set::get_set()) {
   if (!FSys::exists(p_set.get_cache_root())) {
     FSys::create_directories(p_set.get_cache_root());
   }
-  if (!FSys::exists(p_set.get_data_root())) {
-    FSys::create_directories(p_set.get_data_root());
-  }
-  DOODLE_LOG_INFO("设置缓存目录 {}", p_set.p_root);
-}
-bool core_set_init::find_maya() {
-  DOODLE_LOG_INFO("寻找maya");
 
-  if (FSys::exists(R"(C:\Program Files\Autodesk\Maya2020\bin)")) {
-    p_set.p_mayaPath = R"(C:\Program Files\Autodesk\Maya2020\bin\)";
-    return true;
-  } else if (FSys::exists(R"(C:\Program Files\Autodesk\Maya2019\bin)")) {
-    p_set.p_mayaPath = R"(C:\Program Files\Autodesk\Maya2019\bin\)";
-    return true;
-  } else if (FSys::exists(R"(C:\Program Files\Autodesk\Maya2018\bin)")) {
-    p_set.p_mayaPath = R"(C:\Program Files\Autodesk\Maya2018\bin\)";
-    return true;
-  }
-  return false;
+  DOODLE_LOG_INFO("设置缓存目录 {}", p_set.p_root);
 }
 
 void core_set_init::read_file() {
-  FSys::path l_k_setting_file_name = p_set.get_doc() / p_set.config_file_name();
+  FSys::path l_k_setting_file_name = p_set.get_doc() / doodle_config::config_name;
   DOODLE_LOG_INFO("读取配置文件 {}", l_k_setting_file_name);
   if (FSys::exists(l_k_setting_file_name)) {
     FSys::ifstream l_in_josn{l_k_setting_file_name, std::ifstream::binary};
@@ -150,9 +121,9 @@ void core_set_init::read_file() {
   g_reg()->ctx().get<user::current_user>().uuid = p_set.user_id;
 }
 bool core_set_init::write_file() {
-  DOODLE_LOG_INFO("写入配置文件 {}", p_set.p_doc / p_set.config_file_name());
+  DOODLE_LOG_INFO("写入配置文件 {}", p_set.p_doc / doodle_config::config_name);
 
-  FSys::ofstream l_ofstream{p_set.p_doc / p_set.config_file_name(), std::ios::out | std::ios::binary};
+  FSys::ofstream l_ofstream{p_set.p_doc / doodle_config::config_name, std::ios::out | std::ios::binary};
   (*p_set.json_data)["setting"] = p_set;
 
   l_ofstream << p_set.json_data->dump();
@@ -169,7 +140,6 @@ bool core_set_init::config_to_user() {
 
 void to_json(nlohmann::json &j, const core_set &p) {
   j["organization_name"]        = p.organization_name;
-  j["mayaPath"]                 = p.p_mayaPath;
   j["max_thread"]               = p.p_max_thread;
   j["timeout"]                  = p.timeout;
   j["project_root"]             = p.project_root;
@@ -181,6 +151,8 @@ void to_json(nlohmann::json &j, const core_set &p) {
   j["user_name"]                = p.user_name;
   j["program_location_attr"]    = p.program_location_attr;
   j["server_ip"]                = p.server_ip;
+  j["maya_version"]             = p.maya_version;
+  j["layout_config"]            = p.layout_config;
 }
 
 void from_json(const nlohmann::json &j, core_set &p) {
@@ -191,7 +163,6 @@ void from_json(const nlohmann::json &j, core_set &p) {
   }
   if (j.count("ue4_path")) j["ue4_path"].get_to(p.ue4_path);
   if (j.count("ue4_version")) j["ue4_version"].get_to(p.ue4_version);
-  j.at("mayaPath").get_to(p.p_mayaPath);
   j.at("max_thread").get_to(p.p_max_thread);
   j.at("timeout").get_to(p.timeout);
   if (j.contains("project_root")) j.at("project_root").get_to(p.project_root);
@@ -209,6 +180,8 @@ void from_json(const nlohmann::json &j, core_set &p) {
     p.program_location_attr = j.at("program_location_attr").get<FSys::path>();
   }
   if (j.contains("server_ip")) j.at("server_ip").get_to(p.server_ip);
+  if (j.contains("maya_version")) j.at("maya_version").get_to(p.maya_version);
+  if (j.contains("layout_config")) j.at("layout_config").get_to(p.layout_config);
 }
 void core_set::add_recent_project(const FSys::path &in) {
   auto k_find_root = std::find(project_root.begin(), project_root.end(), in);

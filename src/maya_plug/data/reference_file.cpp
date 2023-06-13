@@ -4,6 +4,8 @@
 
 #include "reference_file.h"
 
+#include "doodle_core/exception/exception.h"
+#include "doodle_core/logger/logger.h"
 #include <doodle_core/lib_warp/std_fmt_optional.h>
 #include <doodle_core/lib_warp/std_warp.h>
 #include <doodle_core/metadata/episodes.h>
@@ -11,16 +13,20 @@
 #include <doodle_core/metadata/redirection_path_info.h>
 #include <doodle_core/metadata/shot.h>
 
-#include <maya_plug/data/find_duplicate_poly.h>
+#include <boost/lambda2.hpp>
+
+#include <maya_plug/data/m_namespace.h>
 #include <maya_plug/data/maya_call_guard.h>
 #include <maya_plug/data/maya_file_io.h>
 #include <maya_plug/data/qcloth_shape.h>
 #include <maya_plug/fmt/fmt_dag_path.h>
 #include <maya_plug/fmt/fmt_select_list.h>
-#include <maya_plug/main/maya_plug_fwd.h>
 
 #include "entt/entity/fwd.hpp"
 #include "exception/exception.h"
+#include "maya_tool.h"
+#include <array>
+#include <maya/MApiNamespace.h>
 #include <maya/MDagPath.h>
 #include <maya/MFileIO.h>
 #include <maya/MFileObject.h>
@@ -35,6 +41,7 @@
 #include <maya/MSceneMessage.h>
 #include <maya/MTime.h>
 #include <maya/MUuid.h>
+#include <string_view>
 #include <vector>
 
 namespace doodle::maya_plug {
@@ -115,7 +122,7 @@ FSys::path generate_abc_file_path::get_name(const std::string &in_ref_name) cons
         "{}_{}-{}", l_name, begin_end_time.first.as(MTime::uiUnit()), begin_end_time.second.as(MTime::uiUnit())
     );
 
-  l_name += ".abc";
+  l_name += export_fbx ? ".fbx" : ".abc";
 
   return FSys::path{l_name};
 }
@@ -291,131 +298,6 @@ bool reference_file::replace_sim_assets_file() {
   return true;
 }
 
-bool reference_file::rename_material() const {
-  chick_mobject();
-  MStatus k_s{};
-  MObjectArray k_list = MNamespace::getNamespaceObjects(d_str{file_namespace}, false, &k_s);
-  MFnDependencyNode k_node;
-  for (auto i = 0; i < k_list.length(); ++i) {
-    auto k_obj = k_list[i];
-    if (k_obj.hasFn(MFn::Type::kShadingEngine)) {  /// \brief 找到符合的着色集
-      k_node.setObject(k_obj);
-      auto k_plug = k_node.findPlug(d_str{"surfaceShader"}, true, &k_s);
-      DOODLE_MAYA_CHICK(k_s);
-      MPlugArray l_m_plug_array{};
-      auto k_source = k_plug.source(&k_s);
-      DOODLE_MAYA_CHICK(k_s);
-      if (k_source.isNull(&k_s)) {
-        continue;
-      }
-      DOODLE_MAYA_CHICK(k_s);
-      auto k_mat = k_source.node(&k_s);  /// \brief 从属性链接获得材质名称
-      DOODLE_MAYA_CHICK(k_s);
-      MFnDependencyNode k_mat_node{};
-      k_mat_node.setObject(k_mat);
-      std::string k_mat_node_name = d_str{k_mat_node.name(&k_s)};
-      DOODLE_MAYA_CHICK(k_s);
-      /// \brief 重命名材质名称
-      k_mat_node.setName(d_str{fmt::format("{}_mat", k_mat_node_name)}, false, &k_s);
-      DOODLE_MAYA_CHICK(k_s);
-      DOODLE_LOG_INFO("重命名材质 {} -> {}", d_str{k_node.name()}.str(), k_mat_node_name);
-
-      k_node.setName(d_str{k_mat_node_name}, false, &k_s);
-    }
-  }
-
-  return true;
-}
-
-FSys::path reference_file::export_abc(const MTime &in_start, const MTime &in_endl) const {
-  MStatus k_s{};
-  auto &k_cfg        = g_reg()->ctx().get<project_config::base_config>();
-  auto l_export_root = this->export_group_attr();
-
-  if (!l_export_root) {
-    return {};
-  }
-
-  /// \brief 进行dag遍历提取需要的节点
-  std::map<reference_file_ns::generate_abc_file_path, MSelectionList> export_divide_map{};
-  std::vector<MDagPath> export_path;
-  if (k_cfg.use_only_sim_cloth) {
-    DOODLE_LOG_INFO("只导出解算的物体");
-    export_path = this->qcloth_export_model();
-  } else {
-    MDagPath k_root{};
-    MItDag k_it{};
-    k_s = k_it.reset(*l_export_root, MItDag::kDepthFirst, MFn::Type::kMesh);
-    DOODLE_MAYA_CHICK(k_s);
-    MFnDagNode l_fn_dag_node{};
-    for (; !k_it.isDone(&k_s); k_it.next()) {
-      DOODLE_MAYA_CHICK(k_s);
-      k_s = k_it.getPath(k_root);
-      DOODLE_MAYA_CHICK(k_s);
-
-      k_s = l_fn_dag_node.setObject(k_root);
-      DOODLE_MAYA_CHICK(k_s);
-      /// \brief 检查一下是否是中间对象
-      if (!l_fn_dag_node.isIntermediateObject(&k_s)) {
-        export_path.emplace_back(k_root);
-        DOODLE_MAYA_CHICK(k_s);
-      }
-    }
-  }
-  DOODLE_LOG_INFO("导出收集完成 {}", fmt::join(export_path, " "));
-
-  if (k_cfg.use_divide_group_export) {
-    ranges::for_each(export_path, [](MDagPath &in) { in.pop(); });
-
-    auto l_suffix = g_reg()->ctx().get<project_config::base_config>().maya_out_put_abc_suffix;
-    export_path   = find_out_group_child_suffix_node(l_suffix);
-    export_path |=
-        ranges::actions::unique([](const MDagPath &in_r, const MDagPath &in_l) -> bool { return in_r == in_l; });
-    DOODLE_LOG_INFO("按组划分导出再次收集完成 {}", fmt::join(export_path, " "));
-    for (auto &&i : export_path) {
-      reference_file_ns::generate_abc_file_path l_name{*g_reg()};
-      auto l_node_name = get_node_name_strip_name_space(i);
-      if (auto l_it = l_node_name.find(l_suffix); l_it != std::string::npos) {
-        l_node_name.erase(l_it, l_suffix.length());
-      }
-
-      l_name.add_external_string = l_node_name;
-      l_name.begin_end_time      = std::make_pair(in_start, in_endl);
-      export_divide_map[l_name].add(i, MObject::kNullObj, true);
-    }
-  } else {
-    MSelectionList l_list{};
-    for (auto &&i : export_path) {
-      k_s = l_list.add(i);
-      DOODLE_MAYA_CHICK(k_s);
-    }
-    reference_file_ns::generate_abc_file_path l_name{*g_reg()};
-    l_name.begin_end_time     = std::make_pair(in_start, in_endl);
-    export_divide_map[l_name] = l_list;
-  }
-  DOODLE_LOG_INFO("导出划分完成 {}", export_divide_map);
-  FSys::path l_path{};
-  for (auto &&[name, s_l] : export_divide_map) {
-    l_path = export_abc(in_start, in_endl, s_l, name);
-  }
-  return l_path;
-}
-
-FSys::path reference_file::export_fbx(const MTime &in_start, const MTime &in_end) const {
-  MSelectionList k_select{};
-  MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
-  try {
-    k_s = k_select.add(d_str{fmt::format("{}:{}", get_namespace(), k_cfg.export_group)}, true);
-    DOODLE_MAYA_CHICK(k_s);
-  } catch (const std::runtime_error &err) {
-    DOODLE_LOG_WARN("没有物体被配置文件中的 export_group 值选中, 疑似场景文件, 或为不符合配置的文件, 不进行导出");
-    return {};
-  }
-  reference_file_ns::generate_fbx_file_path l_export{*g_reg()};
-  l_export.begin_end_time = std::make_pair(in_start, in_end);
-  return export_fbx(in_start, in_end, k_select, l_export);
-}
 bool reference_file::has_node(const MSelectionList &in_list) {
   chick_mobject();
   MStatus k_s{};
@@ -441,7 +323,8 @@ bool reference_file::has_node(const MObject &in_node) const {
 }
 bool reference_file::set_namespace(const std::string &in_namespace) {
   DOODLE_CHICK(!in_namespace.empty(), doodle_error{"空名称空间"});
-  file_namespace = in_namespace.substr(1);
+
+  file_namespace = in_namespace.front() == ':' ? in_namespace.substr(1) : in_namespace;
   find_ref_node();
   return has_chick_group();
 }
@@ -471,97 +354,6 @@ bool reference_file::find_ref_node() {
   path = d_str{k_ref.fileName(false, true, true, &k_s)};
   DOODLE_LOG_INFO("获得引用路径 {} 名称空间 {}", path, file_namespace);
   return true;
-}
-void reference_file::qlUpdateInitialPose() const {
-  DOODLE_LOG_INFO("开始更新解算文件 {} 中的布料初始化姿势 {}", get_namespace());
-  MStatus l_status{};
-  auto l_v = find_duplicate_poly{}(MNamespace::getNamespaceObjects(d_str{this->get_namespace()}, false, &l_status));
-  DOODLE_MAYA_CHICK(l_status);
-
-  for (auto &&[l_obj1, l_obj2] : l_v) {
-    MSelectionList l_list{};
-    DOODLE_MAYA_CHICK(l_list.add(l_obj1));
-    DOODLE_MAYA_CHICK(l_list.add(l_obj2));
-    DOODLE_MAYA_CHICK(MGlobal::setActiveSelectionList(l_list));
-    DOODLE_MAYA_CHICK(MGlobal::executeCommand(d_str{"qlUpdateInitialPose;"}));
-  }
-}
-entt::handle reference_file::export_file(const reference_file::export_arg &in_arg) {
-  entt::handle out_{};
-  FSys::path l_path{};
-
-  export_file_info::export_type l_type{};
-  switch (in_arg.export_type_p) {
-    case export_type::abc: {
-      l_type = export_file_info::export_type::abc;
-      l_path = export_abc(in_arg.start_p, in_arg.end_p);
-
-    } break;
-    case export_type::fbx: {
-      l_type = export_file_info::export_type::fbx;
-      l_path = export_fbx(in_arg.start_p, in_arg.end_p);
-    } break;
-  }
-  if (!l_path.empty() && g_reg()->ctx().get<project_config::base_config>().use_write_metadata) {
-    out_ = make_handle();
-    FSys::path l_ref_file{this->path};
-    if (l_ref_file.empty()) {
-      l_ref_file = this->get_namespace();
-    }
-    auto l_eps{""s};
-    if (episodes::analysis_static(out_, l_path)) l_eps = fmt::to_string(out_.get<episodes>());
-    shot::analysis_static(out_, l_path);
-    auto l_upload_prefix = FSys::path{magic_enum::enum_name(l_type).data()} / l_eps;
-    out_.emplace<export_file_info>(
-            l_path, boost::numeric_cast<std::int32_t>(in_arg.start_p.value()),
-            boost::numeric_cast<std::int32_t>(in_arg.end_p.value()), l_ref_file, l_type
-    )
-        .upload_path_ = l_upload_prefix;
-    export_file_info::write_file(out_);
-  }
-  return out_;
-}
-
-entt::handle reference_file::export_file_select(
-    const reference_file::export_arg &in_arg, const MSelectionList &in_list
-) {
-  entt::handle out_{};
-  FSys::path l_path{};
-
-  export_file_info::export_type l_type{};
-  switch (in_arg.export_type_p) {
-    case export_type::abc: {
-      l_type = export_file_info::export_type::abc;
-      reference_file_ns::generate_abc_file_path l_name{*g_reg()};
-      l_name.begin_end_time = std::make_pair(in_arg.start_p, in_arg.end_p);
-      l_path                = export_abc(in_arg.start_p, in_arg.end_p, in_list, l_name);
-
-    } break;
-    case export_type::fbx: {
-      l_type = export_file_info::export_type::fbx;
-      reference_file_ns::generate_fbx_file_path l_export{*g_reg()};
-      l_export.begin_end_time = std::make_pair(in_arg.start_p, in_arg.end_p);
-      l_path                  = export_fbx(in_arg.start_p, in_arg.end_p, in_list, l_export);
-    } break;
-  }
-  if (!l_path.empty() && g_reg()->ctx().get<project_config::base_config>().use_write_metadata) {
-    out_ = make_handle();
-    FSys::path l_ref_file{this->path};
-    if (l_ref_file.empty()) {
-      l_ref_file = this->get_namespace();
-    }
-    auto l_eps{""s};
-    if (episodes::analysis_static(out_, l_path)) l_eps = fmt::to_string(out_.get<episodes>());
-    auto l_upload_prefix = FSys::path{magic_enum::enum_name(l_type).data()} / l_eps;
-    shot::analysis_static(out_, l_path);
-    out_.emplace<export_file_info>(
-            l_path, boost::numeric_cast<std::int32_t>(in_arg.start_p.value()),
-            boost::numeric_cast<std::int32_t>(in_arg.end_p.value()), l_ref_file, l_type
-    )
-        .upload_path_ = l_upload_prefix;
-    export_file_info::write_file(out_);
-  }
-  return out_;
 }
 
 bool reference_file::replace_file(const entt::handle &in_handle) {
@@ -624,99 +416,7 @@ FSys::path reference_file::get_abs_path() const {
   DOODLE_MAYA_CHICK(k_s);
   return l_path;
 }
-FSys::path reference_file::export_abc(
-    const MTime &in_start, const MTime &in_end, const MSelectionList &in_export_obj,
-    const reference_file_ns::generate_abc_file_path &in_abc_name
-) const {
-  FSys::path out_{};
-  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
 
-  if (k_cfg.use_rename_material) rename_material();
-  MStatus k_s{};
-
-  if (in_export_obj.isEmpty()) {
-    DOODLE_LOG_INFO("没有找到导出对象");
-    return out_;
-  }
-  std::vector<std::string> l_export_paths;
-  if (k_cfg.use_merge_mesh) {
-    MDagPath k_mesh_path{comm_warp::marge_mesh(in_export_obj, get_namespace())};
-    l_export_paths.emplace_back(fmt::format("-root {}", get_node_full_name(k_mesh_path)));
-  } else {
-    MStringArray l_string_array{};
-    k_s = in_export_obj.getSelectionStrings(l_string_array);
-    DOODLE_MAYA_CHICK(k_s);
-    for (auto i = 0; i < l_string_array.length(); ++i) {
-      l_export_paths.emplace_back(fmt::format("-root {}", l_string_array[i]));
-    }
-  }
-
-  auto k_path = in_abc_name(*this);
-  auto l_com  = fmt::format(
-      R"(
-AbcExport -j "-frameRange {} {} {} -dataFormat ogawa {} -file {}";
-)",
-      in_start.as(MTime::uiUnit()),    /// \brief 开始时间
-      in_end.as(MTime::uiUnit()),      /// \brief 结束时间
-      get_abc_exprt_arg(),             /// \brief 导出参数
-      fmt::join(l_export_paths, " "),  /// \brief 导出物体的根路径
-      k_path.generic_string()
-  );
-  DOODLE_LOG_INFO("生成导出命令 {}", l_com);
-
-  /// \brief 导出abc命令
-  k_s = MGlobal::executeCommand(d_str{l_com});  /// \brief 导出文件路径，包含文件名和文件路径
-  DOODLE_MAYA_CHICK(k_s);
-  return k_path;
-}
-FSys::path reference_file::export_fbx(
-    const MTime &in_start, const MTime &in_end, const MSelectionList &in_export_obj,
-    const reference_file_ns::generate_fbx_file_path &in_fbx_name
-) const {
-  FSys::path out_{};
-
-  DOODLE_CHICK(*this, doodle_error{"需要有效的引用"});
-
-  MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
-
-  if (in_export_obj.isEmpty()) {
-    DOODLE_LOG_WARN("没有选中的物体, 不进行输出");
-    return out_;
-  }
-
-  k_s = MGlobal::setActiveSelectionList(in_export_obj);
-
-  boost::system::system_error l_err{make_error(k_s.statusCode()), k_s.errorString().asUTF8()};
-
-  DOODLE_MAYA_CHICK(k_s);
-
-  this->bake_results(in_start, in_end);
-
-  auto k_file_path = in_fbx_name(*this);
-  DOODLE_LOG_INFO("导出fbx文件路径 {}", k_file_path);
-
-  auto k_comm = fmt::format("FBXExportBakeComplexStart -v {};", in_start.value());
-  k_s         = MGlobal::executeCommand(d_str{k_comm});
-  DOODLE_MAYA_CHICK(k_s);
-
-  k_comm = fmt::format("FBXExportBakeComplexEnd -v {};", in_end.value());
-  k_s    = MGlobal::executeCommand(d_str{k_comm});
-  DOODLE_MAYA_CHICK(k_s);
-
-  k_comm = std::string{"FBXExportBakeComplexAnimation -v true;"};
-  k_s    = MGlobal::executeCommand(d_str{k_comm});
-  DOODLE_MAYA_CHICK(k_s);
-
-  k_comm = std::string{"FBXExportConstraints -v true;"};
-  k_s    = MGlobal::executeCommand(d_str{k_comm});
-  DOODLE_MAYA_CHICK(k_s);
-
-  k_comm = fmt::format(R"(FBXExport -f "{}" -s;)", k_file_path.generic_string());
-  k_s    = MGlobal::executeCommand(d_str{k_comm});
-  DOODLE_MAYA_CHICK(k_s);
-  return k_file_path;
-}
 MSelectionList reference_file::get_all_object() const {
   MStatus k_s{};
   MSelectionList l_select;
@@ -746,142 +446,7 @@ std::optional<MDagPath> reference_file::export_group_attr() const {
   }
   return l_path.isValid() ? std::make_optional(l_path) : std::optional<MDagPath>{};
 }
-std::vector<MDagPath> reference_file::qcloth_export_model() const {
-  // @TODO: 调整导出模型的方式
-  // auto l_cloth = qcloth_shape::create(make_handle(*this));
 
-  // MStatus l_status{};
-  // MObject l_return{};
-  std::vector<MDagPath> l_all_path{};
-  // if (!has_chick_group()) return l_all_path;
-
-  // MFnDagNode l_child{};
-  // MObject l_export_group{export_group_attr()->node(&l_status)};
-  // DOODLE_MAYA_CHICK(l_status);
-
-  // for (auto &&qlc : l_cloth) {
-  //   auto l_object = qlc.get<qcloth_shape>().ql_cloth_shape().node(&l_status);
-  //   DOODLE_MAYA_CHICK(l_status);
-  //   for (MItDependencyGraph l_it{
-  //            l_object, MFn::Type::kMesh, MItDependencyGraph::Direction::kDownstream,
-  //            MItDependencyGraph::Traversal::kDepthFirst, MItDependencyGraph::Level::kNodeLevel, &l_status};
-  //        !l_it.isDone() && l_status; l_it.next()) {
-  //     auto l_temp_sp = get_dag_path(l_it.currentItem(&l_status));
-  //     DOODLE_MAYA_CHICK(l_status);
-  //     auto l_current_path = get_dag_path(l_temp_sp.transform(&l_status));
-  //     DOODLE_MAYA_CHICK(l_status);
-  //     l_status = l_child.setObject(l_current_path);
-  //     DOODLE_MAYA_CHICK(l_status);
-  //     if (l_child.hasParent(l_export_group)) {
-  //       auto l_path = l_current_path;
-  //       if (auto l_it_j = ranges::find_if(l_all_path, [&](const MDagPath &in) { return l_path == in; });
-  //           l_it_j == l_all_path.end()) {
-  //         l_all_path.emplace_back(l_current_path);
-  //       }
-  //     }
-  //   }
-  // }
-
-  return l_all_path;
-}
-void reference_file::bake_results(const MTime &in_start, const MTime &in_end) const {
-  if (!has_chick_group()) {
-    DOODLE_LOG_INFO("{} 没有ue4组", path);
-    return;
-  }
-
-  MStatus k_s{};
-  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
-  /**
-   *
-   * @brief
-   * bakeResults(simulation=True,
-   *  time=(doodle_work_space.raneg.start,
-   *        doodle_work_space.raneg.end),
-   *  hierarchy="below",
-   *  sampleBy=1,
-   *  disableImplicitControl=True,
-   *  preserveOutsideKeys=False,
-   *  sparseAnimCurveBake=False)
-   *
-   *  preserveOutsideKeys 这个选项会导致眼睛出现问题
-   */
-  static std::string maya_bakeResults_str{R"(
-bakeResults -simulation true -t "{}:{}" -hierarchy below -sampleBy 1 -oversamplingRate 1 -disableImplicitControl true -preserveOutsideKeys {} -sparseAnimCurveBake false -removeBakedAttributeFromLayer false -removeBakedAnimFromLayer false -bakeOnOverrideLayer false -minimizeRotation true -controlPoints false -shape true "{}:*{}";)"};
-  auto l_comm = fmt::format(
-      maya_bakeResults_str, in_start.value(), in_end.value(), "false"s, get_namespace(), k_cfg.export_group
-  );
-  DOODLE_LOG_INFO("开始使用命令 {} 主动烘培动画帧", l_comm);
-  try {
-    k_s = MGlobal::executeCommand(d_str{l_comm});
-    DOODLE_MAYA_CHICK(k_s);
-  } catch (const std::runtime_error &in) {
-    DOODLE_LOG_INFO("开始主动烘培动画帧失败, 开始使用备用参数重试 {}", boost::diagnostic_information(in));
-    try {
-      l_comm = fmt::format(
-          maya_bakeResults_str, in_start.value(), in_end.value(), "true"s, get_namespace(), k_cfg.export_group
-      );
-      DOODLE_LOG_INFO("开始使用命令 {} 主动烘培动画帧", l_comm);
-      k_s = MGlobal::executeCommand(d_str{l_comm});
-      DOODLE_MAYA_CHICK(k_s);
-    } catch (const std::runtime_error &in2) {
-      DOODLE_LOG_INFO("开始主动烘培动画帧失败, 开始使用默认参数重试  error {} ", boost::diagnostic_information(in2));
-
-      try {
-        l_comm = fmt::format(
-            R"(bakeResults  -simulation true -t "{}:{}" -hierarchy below "{}:*{}";)", in_start.value(), in_end.value(),
-            get_namespace(), k_cfg.export_group
-        );
-        DOODLE_LOG_INFO("开始使用命令 {} 主动烘培动画帧", l_comm);
-        k_s = MGlobal::executeCommand(d_str{l_comm});
-        DOODLE_MAYA_CHICK(k_s);
-      } catch (const std::runtime_error &in3) {
-        DOODLE_LOG_INFO("烘培失败, 直接导出 {}", boost::diagnostic_information(in3));
-      }
-    }
-
-    DOODLE_LOG_INFO("完成烘培, 不检查结果, 直接进行输出");
-  }
-}
-std::string reference_file::get_abc_exprt_arg() {
-  auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
-  std::string l_r{};
-  if (k_cfg.export_abc_arg[0]) l_r += "-uvWrite ";
-  if (k_cfg.export_abc_arg[1]) l_r += "-writeColorSets ";
-  if (k_cfg.export_abc_arg[2]) l_r += "-writeFaceSets ";
-  if (k_cfg.export_abc_arg[3]) l_r += "-wholeFrameGeo ";
-  if (k_cfg.export_abc_arg[4]) l_r += "-worldSpace ";
-  if (k_cfg.export_abc_arg[5]) l_r += "-writeVisibility ";
-  if (k_cfg.export_abc_arg[6]) l_r += "-writeUVSets ";
-  if (k_cfg.export_abc_arg[7]) l_r += "-stripNamespaces ";
-
-  return l_r;
-}
-std::vector<MDagPath> reference_file::find_out_group_child_suffix_node(const std::string &in_suffix) const {
-  auto l_uot_group = export_group_attr();
-  if (!l_uot_group) {
-    return {};
-  }
-
-  MItDag l_it{};
-  MStatus l_status{};
-  l_status = l_it.reset(*l_uot_group, MItDag::kBreadthFirst, MFn::Type::kTransform);
-  DOODLE_MAYA_CHICK(l_status);
-
-  std::vector<MDagPath> l_r{};
-  for (; !l_it.isDone(); l_it.next()) {
-    MDagPath l_path{};
-    l_status = l_it.getPath(l_path);
-    DOODLE_MAYA_CHICK(l_status);
-    DOODLE_LOG_INFO("迭代路径 {}", l_path);
-    auto l_node = get_node_name_strip_name_space(l_path);
-    if (l_node.length() > in_suffix.length() && std::equal(in_suffix.rbegin(), in_suffix.rend(), l_node.rbegin())) {
-      l_r.emplace_back(l_path);
-    }
-  }
-
-  return l_r;
-}
 std::optional<MDagPath> reference_file::get_field_dag() const {
   MSelectionList l_select{};
   auto l_status = l_select.add(d_str{field_attr}, false);
@@ -910,6 +475,40 @@ void reference_file::add_field_dag(const MSelectionList &in_list) {
 }
 const std::string &reference_file::get_field_string() const { return field_attr; }
 const std::string &reference_file::get_key_path() const { return path; }
+
+std::vector<MDagPath> reference_file::get_alll_cloth_obj() const {
+  std::vector<MDagPath> l_export_path{};
+  MStatus l_status{};
+  MFnDagNode l_child_dag{};
+  auto l_root = export_group_attr();
+  if (!l_root) return {};
+
+  MObject l_export_group{l_root->node(&l_status)};
+  maya_chick(l_status);
+  for (auto &&[e, l_cloth] : g_reg()->view<cloth_interface>().each()) {
+    if (l_cloth->get_namespace() == get_namespace()) {
+      auto l_obj = l_cloth->get_shape().node();
+      for (MItDependencyGraph l_it{
+               l_obj, MFn::kMesh, MItDependencyGraph::Direction::kDownstream,
+               MItDependencyGraph::Traversal::kDepthFirst, MItDependencyGraph::Level::kNodeLevel, &l_status};
+           !l_it.isDone(); l_it.next()) {
+        auto l_current_path = get_dag_path(get_transform(l_it.currentItem(&l_status)));
+        maya_chick(l_status);
+        l_status = l_child_dag.setObject(l_current_path);
+        maya_chick(l_status);
+        if (l_child_dag.hasParent(l_export_group)) {
+          auto l_path = l_current_path;
+          if (auto l_it_j = ranges::find_if(l_export_path, boost::lambda2::_1 == l_path);
+              l_it_j == l_export_path.end()) {
+            l_export_path.emplace_back(l_current_path);
+          }
+        }
+      }
+    }
+  }
+  return l_export_path;
+}
+
 bool reference_file::has_chick_group() const {
   auto &k_cfg = g_reg()->ctx().get<project_config::base_config>();
   try {
@@ -923,6 +522,9 @@ bool reference_file::has_chick_group() const {
   } catch (const maya_error &err) {
     DOODLE_LOG_INFO("引用文件 {} 没有配置中指定的 {} 导出组 {}", file_namespace, k_cfg.export_group, err.what());
     return false;
+  } catch (const doodle_error &err) {
+    DOODLE_LOG_ERROR("{}", boost::diagnostic_information(err));
+    return false;
   }
 }
 
@@ -934,8 +536,12 @@ std::vector<entt::handle> reference_file_factory::create_ref() const {
   auto k_names = MNamespace::getNamespaces(MNamespace::rootNamespace(), false, &k_s);
   maya_chick(k_s);
 
+  constexpr static std::array<std::string_view, 2> g_not_find_ui{":UI", ":shared"};
   for (int l_i = 0; l_i < k_names.length(); ++l_i) {
     auto &&k_name = k_names[l_i];
+    if (std::find(g_not_find_ui.begin(), g_not_find_ui.end(), k_name.asUTF8()) != g_not_find_ui.end()) {
+      continue;
+    }
     reference_file k_ref{k_name};
     if (k_ref) {
       DOODLE_LOG_INFO("获得引用文件 {}", k_ref.get_key_path());
@@ -949,6 +555,31 @@ std::vector<entt::handle> reference_file_factory::create_ref() const {
 
   return l_ret;
 }
-void reference_file_factory::save_to_files() const {}
+std::vector<entt::handle> reference_file_factory::create_ref(const MSelectionList &in_list) const {
+  std::vector<entt::handle> l_ret{};
+  g_reg()->clear<reference_file>();
+  g_reg()->clear<qcloth_shape>();
+
+  std::set<std::string> l_names{};
+  MItSelectionList l_it{in_list};
+  for (; !l_it.isDone(); l_it.next()) {
+    MDagPath l_path{};
+    l_it.getDagPath(l_path);
+    auto l_name = get_node_name(l_path);
+    l_names.emplace(m_namespace::get_namespace_from_name(l_name));
+  }
+  for (auto &&k_name : l_names) {
+    reference_file k_ref{k_name};
+    if (k_ref) {
+      DOODLE_LOG_INFO("获得引用文件 {}", k_ref.get_key_path());
+      auto l_h = make_handle();
+      l_h.emplace<reference_file>(k_ref);
+      l_ret.emplace_back(l_h);
+    } else {
+      DOODLE_LOG_INFO("引用文件 {} 未加载", k_ref.get_key_path());
+    }
+  }
+  return l_ret;
+}
 
 }  // namespace doodle::maya_plug

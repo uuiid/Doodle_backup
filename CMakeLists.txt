@@ -1,5 +1,5 @@
 ﻿# 确定最低版本
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 # 添加模块文件(辅助cmake寻找需要的动态库)
 # CMAKE_SOURCE_DIR 代表当前文件的路径
@@ -86,12 +86,12 @@ find_package(Sqlpp11 CONFIG REQUIRED
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(range-v3 CONFIG REQUIRED)
 find_package(wil CONFIG REQUIRED)
-
+find_package(CMakeRC CONFIG REQUIRED)
 # this is heuristically generated, and may not be correct
 find_package(implot CONFIG REQUIRED)
 
 # 寻找反射
-find_package(rttr CONFIG REQUIRED)
+# find_package(rttr CONFIG REQUIRED)
 
 # 压缩库
 find_package(cryptopp CONFIG REQUIRED)
@@ -126,6 +126,7 @@ add_subdirectory(src)
 "D:\Program Files\Epic Games\UE_4.27\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin=E:\Doodle\script\uePlug\Doodle\Doodle.uplugin -TargetPlatforms=Win64 -Package=E:\Doodle\script\uePlug\4.27\Plugins\Doodle -VS2019
 "D:\Program Files\Epic Games\UE_5.0\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin=E:\Doodle\script\uePlug\Doodle\Doodle.uplugin -TargetPlatforms=Win64 -Package=E:\Doodle\script\uePlug\5.0\Plugins\Doodle
 "D:\Program Files\Epic Games\UE_5.1\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin=E:\Doodle\script\uePlug\Doodle\Doodle.uplugin -TargetPlatforms=Win64 -Package=E:\Doodle\script\uePlug\5.1\Plugins\Doodle
+"D:\Program Files\Epic Games\UE_5.2\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin=E:\Doodle\script\uePlug\Doodle\Doodle.uplugin -TargetPlatforms=Win64 -Package=E:\Doodle\script\uePlug\5.2\Plugins\Doodle
 
 $env:VCPKG_DEFAULT_TRIPLET="x64-windows"
 "$(SolutionDir)doodle_plug.uproject" -skipcompile -run=DoodleAssCreate -path="E:\Users\TD\Documents\Unreal_Projects\doodle_plug_dev_4.27\test_file\doodle_import_data_main.json"

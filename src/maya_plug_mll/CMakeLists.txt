@@ -39,7 +39,6 @@ add_custom_command(
         TARGET doodle_maya
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/script/maya ${PROJECT_BINARY_DIR}/plug/maya
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_LIST_DIR}/../doodle_core/resource/maya_fun_tool.py ${PROJECT_BINARY_DIR}/plug/maya/scripts/scripts/
 )
 
 
@@ -50,19 +49,13 @@ set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION maya/plug-ins)
 include(InstallRequiredSystemLibraries)
 install(TARGETS doodle_maya
         RUNTIME_DEPENDENCIES
+        DIRECTORIES ${MAYA_BASE_DIR}/bin
         PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-" "hvsifiletrust" "pdmutilities" "openmaya" "qt" "foundation" "metadata"
         POST_EXCLUDE_REGEXES ".*system32/.*\\.dll" "Maya${Maya_Version}"
         DESTINATION maya/plug-ins
         COMPONENT maya_plug_com
-        )
+)
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/script/maya/
         DESTINATION maya
         COMPONENT maya_plug_com)
-install(FILES ${CMAKE_CURRENT_LIST_DIR}/../doodle_core/resource/maya_fun_tool.py
-        DESTINATION maya/scripts/scripts/
-        COMPONENT maya_plug_com)
-install(FILES maya_plug_install.wxs
-        DESTINATION wix
-        COMPONENT maya_plug_com)
-doodle_install_code_wix(maya maya_plug_com)

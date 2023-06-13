@@ -4,6 +4,7 @@
 
 #include "main_menu_bar.h"
 
+#include "doodle_core/core/core_set.h"
 #include <doodle_core/core/core_sig.h>
 #include <doodle_core/database_task/sqlite_client.h>
 
@@ -50,7 +51,7 @@ main_menu_bar::~main_menu_bar() = default;
 void main_menu_bar::menu_file() {
   if (dear::MenuItem("创建项目"s)) {
     g_windows_manage().create_windows_arg(
-        windows_init_arg{}.create<create_project_dialog>().set_render_type<dear::Popup>()
+        windows_init_arg{}.create<create_project_dialog>().set_render_type<dear::Begin>()
     );
   }
   if (dear::MenuItem("打开项目"s)) {
@@ -122,7 +123,10 @@ void main_menu_bar::menu_windows() {
 void main_menu_bar::menu_layout() {
   for (auto &&[name, open] : g_windows_manage().get_layout_list()) {
     if (dear::MenuItem(name.data(), open)) {
-      if (!open) g_windows_manage().switch_layout(name);
+      if (!open) {
+        g_windows_manage().switch_layout(name);
+        core_set::get_set().layout_config = name;
+      }
     }
   }
 }

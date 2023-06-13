@@ -21,6 +21,7 @@
 
 #include <boost/asio.hpp>
 
+#include "database_task/details/tool.h"
 #include "details/tool.h"
 #include "metadata/metadata.h"
 #include "metadata/project.h"
@@ -82,10 +83,10 @@ struct future_data {
     );
     in_reg->remove<t>(l_entt_list.begin(), l_entt_list.end());
     in_reg->insert<t>(l_entt_list.begin(), l_entt_list.end(), l_data_list.begin());
-    for (auto&& e : l_entt_list) {
-      // 触发更改
-      in_reg->patch<t>(e);
-    }
+    // for (auto&& e : l_entt_list) {
+    //   // 触发更改
+    //   in_reg->patch<t>(e);
+    // }
   };
 };
 
@@ -111,6 +112,7 @@ class select::impl {
   std::vector<entt::entity> create_entt{};
   id_map_type id_map{};
   process_message* process_message_{};
+// #define DOODLE_SQL_compatible_v2
 #if defined(DOODLE_SQL_compatible_v2)
 #pragma region "old compatible 兼容旧版函数"
   void select_old(entt::registry& in_reg, sqlpp::sqlite3::connection& in_conn) {
@@ -139,7 +141,6 @@ class select::impl {
                   doodle::project, doodle::episodes, doodle::shot, doodle::season, doodle::assets, doodle::assets_file,
                   doodle::time_point_wrap, doodle::comment, doodle::project_config::base_config, doodle::image_icon,
                   doodle::importance, doodle::redirection_path_info>(l_h, k_json);
-              database::save(l_h);
               process_message_->message("开始旧版本兼容转换"s);
               process_message_->progress_step({1, l_size});
             }}
@@ -266,6 +267,17 @@ void select_ctx_template(entt::registry& in_reg, sqlpp::sqlite3::connection& in_
 
   _select_ctx_(in_reg, in_conn, l_fun);
 }
+template <typename Type>
+void patch_old_sig(entt::registry& in_reg) {
+  for (auto& e : in_reg.view<Type>()) {
+    in_reg.patch<Type>(e);
+  }
+}
+
+template <typename... Type>
+void patch_old(entt::registry& in_reg) {
+  (patch_old_sig<Type>(in_reg), ...);
+};
 
 }  // namespace
 
@@ -301,30 +313,27 @@ bool select::operator()(entt::registry& in_registry, const FSys::path& in_projec
   for (auto&& l_f : p_i->list_install) {
     l_f(p_i->local_reg);
   }
+  return true;
+}
+
+bool select::is_old(const FSys::path& in_project_path, conn_ptr& in_connect) {
+  p_i->process_message_ = g_reg()->ctx().find<process_message>();
+  p_i->only_ctx         = false;
+  p_i->project          = in_project_path;
+
+  return detail::has_table(tables::com_entity{}, *in_connect);
+}
+
+void select::patch() {
   for (auto&& [e, p] : p_i->local_reg->view<project>().each()) {
     p_i->local_reg->emplace_or_replace<database>(e);
   }
   for (auto&& [e, p] : p_i->local_reg->view<project_config::base_config>().each()) {
+    // 转换默认值
+    p.use_only_sim_cloth = true;
     p_i->local_reg->emplace_or_replace<database>(e);
   }
-  for (auto&& [e, p] : p_i->local_reg->view<doodle::episodes>().each()) {
-    p_i->local_reg->patch<doodle::episodes>(e);
-  }
-  for (auto&& [e, p] : p_i->local_reg->view<doodle::shot>().each()) {
-    p_i->local_reg->patch<doodle::shot>(e);
-  }
-  for (auto&& [e, p] : p_i->local_reg->view<doodle::season>().each()) {
-    p_i->local_reg->patch<doodle::season>(e);
-  }
-  for (auto&& [e, p] : p_i->local_reg->view<doodle::assets>().each()) {
-    p_i->local_reg->patch<doodle::assets>(e);
-  }
-  for (auto&& [e, p] : p_i->local_reg->view<doodle::assets_file>().each()) {
-    p_i->local_reg->patch<doodle::assets_file>(e);
-  }
-
-  //  (*in_connect)(sqlpp::sqlite3::drop_if_exists_table(tables::com_entity{}));
-  return true;
+  // patch_old<DOODLE_SQLITE_TYPE>(*p_i->local_reg);
 }
 
 }  // namespace doodle::database_n

@@ -38,6 +38,7 @@
 #include <boost/ptr_container/ptr_vector.hpp>
 
 #include "core/core_help_impl.h"
+#include "core/file_sys.h"
 #include "entt/entity/fwd.hpp"
 #include "entt/signal/sigh.hpp"
 #include "metadata/project.h"
@@ -47,25 +48,30 @@
 #include <core/status_info.h>
 #include <database_task/details/database.h>
 #include <database_task/select.h>
+#include <filesystem>
+#include <fmt/core.h>
 #include <metadata/metadata.h>
+#include <range/v3/action/unique.hpp>
 #include <range/v3/all.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/transform.hpp>
 #include <utility>
 
 namespace doodle::database_n {
 
-bsys::error_code file_translator::open_begin(const FSys::path& in_path) {
+bsys::error_code file_translator::open_begin() {
   doodle_lib::Get().ctx().get<database_info>().path_ =
-      in_path.empty() ? FSys::path{database_info::memory_data} : in_path;
+      project_path.empty() ? FSys::path{database_info::memory_data} : project_path;
   auto& k_msg = g_reg()->ctx().emplace<process_message>();
   k_msg.set_name("加载数据");
   k_msg.set_state(k_msg.run);
   g_reg()->clear();
-  g_reg()->ctx().get<core_sig>().project_begin_open(in_path);
+  g_reg()->ctx().get<core_sig>().project_begin_open(project_path);
   is_opening = true;
   return {};
 }
-bsys::error_code file_translator::open(const FSys::path& in_path) {
-  auto l_r = open_impl(in_path);
+bsys::error_code file_translator::open() {
+  auto l_r = open_impl();
   return l_r;
 }
 
@@ -80,7 +86,7 @@ bsys::error_code file_translator::open_end() {
   return {};
 }
 
-bsys::error_code file_translator::save_begin(const FSys::path& in_path) {
+bsys::error_code file_translator::save_begin() {
   auto& k_msg = g_reg()->ctx().emplace<process_message>();
   k_msg.set_name("保存数据");
   k_msg.set_state(k_msg.run);
@@ -89,8 +95,8 @@ bsys::error_code file_translator::save_begin(const FSys::path& in_path) {
   return {};
 }
 
-bsys::error_code file_translator::save(const FSys::path& in_path) {
-  auto l_r = save_impl(in_path);
+bsys::error_code file_translator::save() {
+  auto l_r = save_impl();
   return l_r;
 }
 
@@ -150,30 +156,47 @@ class sqlite_file::impl {
       obs_create_.clear();
     }
 
-    void open(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::map<std::int64_t, entt::entity>& in_handle) {
-      database_n::sql_com<type_t> l_table{in_registry_ptr};
-      if (l_table.has_table(in_conn)) l_table.select(in_conn, in_handle);
+    void open(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::map<std::int64_t, entt::handle>& in_handle) {
+      database_n::sql_com<type_t> l_table{};
+      if (l_table.has_table(in_conn)) l_table.select(in_conn, in_handle, in_registry_ptr);
     };
 
     void save(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, const std::vector<std::int64_t>& in_handle) {
-      database_n::sql_com<type_t> l_orm{in_registry_ptr};
+      database_n::sql_com<type_t> l_orm{};
       l_orm.create_table(in_conn);
 
-      std::vector<entt::entity> l_create{};
+      std::set<entt::entity> l_create{};
 
       for (auto&& i : obs_create_) {
-        l_create.emplace_back(i);
+        l_create.emplace(i);
       }
       for (auto&& i : obs_update_) {
-        l_create.emplace_back(i);
+        l_create.emplace(i);
       }
 
-      BOOST_ASSERT(ranges::all_of(l_create, [&](entt::entity& i) {
-        return in_registry_ptr->get<database>(i).is_install();
-      }));
+      auto l_handles = l_create | ranges::views::transform([&](const entt::entity& in_e) -> entt::handle {
+                         return {*in_registry_ptr, in_e};
+                       }) |
+                       ranges::to_vector;
 
-      l_orm.insert(in_conn, l_create);
-      l_orm.destroy(in_conn, in_handle);
+      BOOST_ASSERT(ranges::all_of(l_handles, [&](entt::handle& i) { return i.get<database>().is_install(); }));
+      auto [l_updata, l_install] = l_orm.split_update_install(in_conn, l_handles);
+      if (!l_updata.empty()) l_orm.update(in_conn, l_updata);
+      if (!l_install.empty()) l_orm.insert(in_conn, l_install);
+      if (!in_handle.empty()) l_orm.destroy(in_conn, in_handle);
+    }
+    void save_all(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, const std::vector<std::int64_t>& in_handle) {
+      database_n::sql_com<type_t> l_orm{};
+      l_orm.create_table(in_conn);
+
+      auto l_v       = in_registry_ptr->view<database, type_t>();
+      auto l_handles = l_v | ranges::views::transform([&](const entt::entity& in_e) -> entt::handle {
+                         return {*in_registry_ptr, in_e};
+                       }) |
+                       ranges::to_vector;
+
+      BOOST_ASSERT(ranges::all_of(l_handles, [&](entt::handle& i) { return i.get<database>().is_install(); }));
+      l_orm.insert(in_conn, l_handles);
     }
   };
 
@@ -212,24 +235,42 @@ class sqlite_file::impl {
       destroy_ids_.clear();
     }
 
-    void open(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::map<std::int64_t, entt::entity>& in_handle) {
-      database_n::sql_com<database> l_table{in_registry_ptr};
-      if (l_table.has_table(in_conn)) l_table.select(in_conn, in_handle);
+    void open(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::map<std::int64_t, entt::handle>& in_handle) {
+      database_n::sql_com<database> l_table{};
+      if (l_table.has_table(in_conn)) l_table.select(in_conn, in_handle, in_registry_ptr);
     };
 
     void save(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::vector<std::int64_t>& in_handle) {
-      database_n::sql_com<database> l_orm{in_registry_ptr};
+      database_n::sql_com<database> l_orm{};
       if (!l_orm.has_table(in_conn)) l_orm.create_table(in_conn);
 
-      std::vector<entt::entity> l_create{};
+      std::set<entt::handle> l_create{};
 
       for (auto&& i : obs_create_) {
-        if (!in_registry_ptr->get<database>(i).is_install()) l_create.emplace_back(i);
+        if (!in_registry_ptr->get<database>(i).is_install()) l_create.emplace(*in_registry_ptr, i);
       }
-
+      auto l_handles = l_create | ranges::views::transform([&](const entt::entity& in_e) -> entt::handle {
+                         return {*in_registry_ptr, in_e};
+                       }) |
+                       ranges::to_vector;
       in_handle = destroy_ids_;
-      l_orm.insert(in_conn, l_create);
-      l_orm.destroy(in_conn, destroy_ids_);
+      if (!l_handles.empty()) l_orm.insert(in_conn, l_handles);
+      if (!destroy_ids_.empty()) l_orm.destroy(in_conn, destroy_ids_);
+    }
+
+    void save_all(const registry_ptr& in_registry_ptr, conn_ptr& in_conn, std::vector<std::int64_t>& in_handle) {
+      database_n::sql_com<database> l_orm{};
+      if (!l_orm.has_table(in_conn)) l_orm.create_table(in_conn);
+
+      std::set<entt::handle> l_create{};
+
+      auto l_v       = in_registry_ptr->view<database>();
+      auto l_handles = l_v | ranges::views::transform([&](const entt::entity& in_e) -> entt::handle {
+                         return {*in_registry_ptr, in_e};
+                       }) |
+                       ranges::to_vector;
+      in_handle = destroy_ids_;
+      if (!l_handles.empty()) l_orm.insert(in_conn, l_handles);
     }
   };
 
@@ -244,16 +285,27 @@ class sqlite_file::impl {
               std::make_shared<impl_obs<arg>>(in_registry_ptr)...} {}
 
     void open(const registry_ptr& in_registry_ptr, conn_ptr& in_conn) {
-      std::map<std::int64_t, entt::entity> l_map{};
+      std::map<std::int64_t, entt::handle> l_map{};
       std::apply([&](auto&&... x) { ((x->disconnect(in_registry_ptr), ...)); }, obs_data_);
       std::apply([&](auto&&... x) { ((x->clear(), ...)); }, obs_data_);
       std::apply([&](auto&&... x) { ((x->open(in_registry_ptr, in_conn, l_map), ...)); }, obs_data_);
+      std::apply([&](auto&&... x) { ((x->connect(in_registry_ptr), ...)); }, obs_data_);
+    }
+    void disconnect(const registry_ptr& in_registry_ptr) {
+      std::apply([&](auto&&... x) { ((x->disconnect(in_registry_ptr), ...)); }, obs_data_);
+    }
+    void connect(const registry_ptr& in_registry_ptr) {
       std::apply([&](auto&&... x) { ((x->connect(in_registry_ptr), ...)); }, obs_data_);
     }
 
     void save(const registry_ptr& in_registry_ptr, conn_ptr& in_conn) {
       std::vector<std::int64_t> l_handles{};
       std::apply([&](auto&&... x) { (x->save(in_registry_ptr, in_conn, l_handles), ...); }, obs_data_);
+      std::apply([&](auto&&... x) { ((x->clear(), ...)); }, obs_data_);
+    }
+    void save_all(const registry_ptr& in_registry_ptr, conn_ptr& in_conn) {
+      std::vector<std::int64_t> l_handles{};
+      std::apply([&](auto&&... x) { (x->save_all(in_registry_ptr, in_conn, l_handles), ...); }, obs_data_);
       std::apply([&](auto&&... x) { ((x->clear(), ...)); }, obs_data_);
     }
   };
@@ -270,30 +322,69 @@ sqlite_file::sqlite_file(registry_ptr in_registry) : ptr(std::make_unique<impl>(
   ptr->registry_attr = std::move(in_registry);
   ptr->obs_save      = std::make_shared<impl::obs_all>(ptr->registry_attr);
 }
-bsys::error_code sqlite_file::open_impl(const FSys::path& in_path) {
+bsys::error_code sqlite_file::open_impl() {
   ptr->registry_attr   = g_reg();
   constexpr auto l_loc = BOOST_CURRENT_LOCATION;
-  //  if (!FSys::exists(in_path)) return bsys::error_code{error_enum::file_not_exists, &l_loc};
 
-  database_n::select l_select{};
-  auto l_k_con = doodle_lib::Get().ctx().get<database_info>().get_connection();
-  if (!l_select(*ptr->registry_attr, in_path, l_k_con)) ptr->obs_save->open(ptr->registry_attr, l_k_con);
-
+  bool need_save{};
+  {
+    database_n::select l_select{};
+    auto l_k_con = doodle_lib::Get().ctx().get<database_info>().get_connection_const();
+    if (!l_select.is_old(project_path, l_k_con)) {
+      ptr->obs_save->open(ptr->registry_attr, l_k_con);
+    } else {
+      ptr->obs_save->disconnect(ptr->registry_attr);
+      l_select(*ptr->registry_attr, project_path, l_k_con);
+      l_select.patch();
+      need_save = true;
+      /// 先监听
+      ptr->obs_save->connect(ptr->registry_attr);
+    }
+  }
   for (auto&& [e, p] : ptr->registry_attr->view<project>().each()) {
     ptr->registry_attr->ctx().emplace<project>() = p;
+    break;
   }
   for (auto&& [e, p] : ptr->registry_attr->view<project_config::base_config>().each()) {
     ptr->registry_attr->ctx().emplace<project_config::base_config>() = p;
+    break;
   }
-  ptr->registry_attr->ctx().get<project>().set_path(in_path.parent_path());
+
+  if (need_save) {
+    if (FSys::folder_is_save(project_path)) {
+      project_path.replace_filename(fmt::format("{}_v2.doodle_db", project_path.stem().string()));
+      if (!FSys::exists(project_path)) {
+        new_file_scene(project_path);
+        doodle_lib::Get().ctx().get<database_info>().path_ = project_path;
+        auto l_k_con = doodle_lib::Get().ctx().get<database_info>().get_connection();
+        auto l_tx    = sqlpp::start_transaction(*l_k_con);
+        ptr->obs_save->save_all(ptr->registry_attr, l_k_con);
+        l_tx.commit();
+      } else {
+        g_reg()->ctx().get<status_info>().message = fmt::format("{} 位置已存在文件", project_path);
+      }
+    } else {
+      // todo: 更改提示
+      g_reg()->ctx().get<status_info>().message = fmt::format("{} 位置无法写入, 不保存新版本文件", project_path);
+    }
+  }
+  ptr->registry_attr->ctx().get<project>().set_path(project_path.parent_path());
 
   return {};
 }
-bsys::error_code sqlite_file::save_impl(const FSys::path& in_path) {
+bsys::error_code sqlite_file::save_impl() {
+  if (!FSys::folder_is_save(project_path)) {
+    g_reg()->ctx().get<status_info>().message = fmt::format("{} 位置无法写入, 不保存", project_path);
+    return bsys::error_code{};
+  }
+
   ptr->registry_attr = g_reg();
 
-  DOODLE_LOG_INFO("文件位置 {}", in_path);
-  doodle_lib::Get().ctx().get<database_info>().path_ = in_path;
+  DOODLE_LOG_INFO("文件位置 {}", project_path);
+  if (auto l_p = project_path.parent_path(); !FSys::exists(l_p)) {
+    FSys::create_directories(l_p);
+  }
+  doodle_lib::Get().ctx().get<database_info>().path_ = project_path;
   try {
     auto l_k_con = doodle_lib::Get().ctx().get<database_info>().get_connection();
     auto l_tx    = sqlpp::start_transaction(*l_k_con);
@@ -301,12 +392,12 @@ bsys::error_code sqlite_file::save_impl(const FSys::path& in_path) {
     l_tx.commit();
   } catch (const sqlpp::exception& in_error) {
     DOODLE_LOG_INFO(boost::diagnostic_information(in_error));
-    g_reg()->ctx().get<status_info>().message = "保存失败 3s 后重试";
-    ptr->error_timer                          = std::make_shared<boost::asio::system_timer>(g_io_context());
-    ptr->error_timer->async_wait([l_path = in_path, this](auto&& in) {
-      this->async_save(l_path, [](boost::system::error_code in) -> void {});
-    });
-    ptr->error_timer->expires_from_now(3s);
+    g_reg()->ctx().get<status_info>().message = "保存失败请重试重试";
+    // ptr->error_timer                          = std::make_shared<boost::asio::system_timer>(g_io_context());
+    // ptr->error_timer->async_wait([l_path = project_path, this](auto&& in) {
+    //   this->async_save(project_path, [](boost::system::error_code in) -> void {});
+    // });
+    // ptr->error_timer->expires_from_now(3s);
   }
 
   return {};

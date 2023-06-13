@@ -224,23 +224,6 @@ void sql_com_destroy_parent_id(conn_ptr& in_ptr, const std::vector<std::int64_t>
     l_conn(l_pre);
   }
 }
-template <typename t, typename... sub_types>
-auto sql_com_destroy_parent_id_return_id(conn_ptr& in_ptr, const std::vector<entt::handle>& in_handle) {
-  auto& l_conn = *in_ptr;
-  const t l_table{};
-  std::map<entt::handle, std::int64_t> map_id{};
-  auto l_pre_select = l_conn.prepare(
-      sqlpp::select(l_table.id).from(l_table).where(l_table.entity_id == sqlpp::parameter(l_table.entity_id))
-  );
-  for (const auto& l_h : in_handle) {
-    l_pre_select.params.entity_id = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
-    for (auto&& row : l_conn(l_pre_select)) {
-      map_id.emplace(l_h, row.id.value());
-    }
-  }
-  ((sql_com_destroy_parent_id<sub_types>(in_ptr, map_id), void()), ...);
-  return map_id;
-}
 
 template <typename t>
 inline sqlpp::make_traits<t, sqlpp::tag::can_be_null> can_be_null();
@@ -255,7 +238,7 @@ inline sqlpp::make_traits<t, sqlpp::tag::require_insert> require_insert();
 //     auto& l_conn = *in_ptr;
 //     const table_t l_table{};
 //
-//     return l_conn.prepare(sqlpp::sqlite3::insert_or_replace_into(l_table).set(
+//     return l_conn.prepare(sqlpp::insert_into(l_table).set(
 //         l_table.value = sqlpp::parameter(l_table.value), l_table.parent_id = sqlpp::parameter(l_table.parent_id)
 //     ));
 //   }
@@ -319,7 +302,11 @@ struct create_table_t {
     (impl_column<columns_t>(in_columns), ...);
     return *this;
   }
-
+  template <typename self_column_t>
+  auto unique_column(const self_column_t& in_self_column) {
+    sql_data += fmt::format(R"(, UNIQUE ({}))", sqlpp::name_of<self_column_t>::template char_ptr<create_table_ctx>());
+    return *this;
+  }
   template <typename self_column_t, typename foreign_column_t>
   auto foreign_column(const self_column_t& in_self_column, const foreign_column_t& in_foreign_column) {
     sql_data += fmt::format(
@@ -330,11 +317,7 @@ struct create_table_t {
     );
     return *this;
   }
-  template <typename self_column_t>
-  auto unique_column(const self_column_t& in_self_column) {
-    sql_data += fmt::format(R"(, UNIQUE ({}))", sqlpp::name_of<self_column_t>::template char_ptr<create_table_ctx>());
-    return *this;
-  }
+
   std::string end() const { return sql_data + ");"; }
   operator std::string() const { return sql_data + ");"; }
 };
@@ -433,14 +416,10 @@ DOODLE_SQL_COLUMN_IMP(upload_path, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(season_count, sqlpp::integer, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(use_only_sim_cloth, sqlpp::boolean, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(use_divide_group_export, sqlpp::boolean, detail::can_be_null);
-DOODLE_SQL_COLUMN_IMP(use_rename_material, sqlpp::boolean, detail::can_be_null);
-DOODLE_SQL_COLUMN_IMP(use_merge_mesh, sqlpp::boolean, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(t_post, sqlpp::integer, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(export_anim_time, sqlpp::integer, detail::can_be_null);
-DOODLE_SQL_COLUMN_IMP(export_abc_arg, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(maya_camera_select_reg, sqlpp::text, detail::require_insert);
 DOODLE_SQL_COLUMN_IMP(maya_camera_select_num, sqlpp::integer, detail::require_insert);
-DOODLE_SQL_COLUMN_IMP(use_write_metadata, sqlpp::boolean, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(abc_export_extract_reference_name, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(abc_export_format_reference_name, sqlpp::text, detail::can_be_null);
 DOODLE_SQL_COLUMN_IMP(abc_export_extract_scene_name, sqlpp::text, detail::can_be_null);
@@ -486,8 +465,7 @@ DOODLE_SQL_TABLE_IMP(
 DOODLE_SQL_TABLE_IMP(
     project_config, column::id, column::entity_id, column::sim_path, column::export_group, column::cloth_proxy,
     column::simple_module_proxy, column::find_icon_regex, column::upload_path, column::season_count,
-    column::use_only_sim_cloth, column::use_divide_group_export, column::use_rename_material, column::use_merge_mesh,
-    column::t_post, column::export_anim_time, column::export_abc_arg, column::use_write_metadata,
+    column::use_only_sim_cloth, column::use_divide_group_export, column::t_post, column::export_anim_time,
     column::abc_export_extract_reference_name, column::abc_export_format_reference_name,
     column::abc_export_extract_scene_name, column::abc_export_format_scene_name, column::abc_export_add_frame_range,
     column::maya_camera_suffix, column::maya_out_put_abc_suffix
@@ -589,10 +567,7 @@ struct sql_create_table_base {
   sql_create_table_base() = default;
   virtual void create_table(doodle::conn_ptr& in_ptr) {
     const table_t l_tables{};
-    in_ptr->execute(detail::create_table(l_tables)
-                        .foreign_column(l_tables.entity_id, tables::entity{}.id)
-                        .unique_column(l_tables.entity_id)
-                        .end());
+    in_ptr->execute(detail::create_table(l_tables).foreign_column(l_tables.entity_id, tables::entity{}.id).end());
     in_ptr->execute(detail::create_index(l_tables.id));
     in_ptr->execute(detail::create_index(l_tables.entity_id));
   };
@@ -600,6 +575,30 @@ struct sql_create_table_base {
   bool has_table(doodle::conn_ptr& in_ptr) {
     const table_t l_tables{};
     return doodle::database_n::detail::has_table(l_tables, *in_ptr);
+  }
+
+  std::tuple<std::map<std::int64_t, entt::handle>, std::vector<entt::handle>> split_update_install(
+      doodle::conn_ptr& in_ptr, const std::vector<entt::handle>& in_entts
+  ) {
+    const table_t l_table{};
+
+    auto l_pre_ = in_ptr->prepare(
+        sqlpp::select(l_table.id).from(l_table).where(l_table.entity_id == sqlpp::parameter(l_table.entity_id))
+    );
+    std::map<std::int64_t, entt::handle> l_updata_map{};
+    std::vector<entt::handle> l_install;
+    for (auto&& e : in_entts) {
+      l_pre_.params.entity_id = e.get<database>().get_id();
+      bool has_{};
+      for (auto&& i : (*in_ptr)(l_pre_)) {
+        l_updata_map.emplace(i.id.value(), e);
+        has_ = true;
+      }
+      if (!has_) {
+        l_install.emplace_back(e);
+      }
+    }
+    return {l_updata_map, l_install};
   }
 };
 template <>
@@ -615,6 +614,29 @@ struct sql_create_table_base<tables::entity> {
   bool has_table(doodle::conn_ptr& in_ptr) {
     const tables::entity l_tables{};
     return doodle::database_n::detail::has_table(l_tables, *in_ptr);
+  }
+
+  std::tuple<std::map<std::int64_t, entt::entity>, std::vector<entt::entity>> split_update_install(
+      doodle::conn_ptr& in_ptr, const std::vector<entt::entity>& in_entts, const registry_ptr& reg_
+  ) {
+    const tables::entity l_table{};
+
+    auto l_pre_ =
+        in_ptr->prepare(sqlpp::select(l_table.id).from(l_table).where(l_table.id == sqlpp::parameter(l_table.id)));
+    std::map<std::int64_t, entt::entity> l_updata_map{};
+    std::vector<entt::entity> l_install;
+    for (auto&& e : in_entts) {
+      l_pre_.params.id = reg_->get<database>(e).get_id();
+      bool has_{};
+      for (auto&& i : (*in_ptr)(l_pre_)) {
+        l_updata_map.emplace(i.id.value(), e);
+        has_ = true;
+      }
+      if (!has_) {
+        l_install.emplace_back(e);
+      }
+    }
+    return {l_updata_map, l_install};
   }
 };
 

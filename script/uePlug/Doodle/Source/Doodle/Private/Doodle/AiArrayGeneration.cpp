@@ -1,16 +1,15 @@
 #include "Doodle/AiArrayGeneration.h"
 
 #include "AI/NavigationSystemBase.h"
-#include "Animation/AnimSingleNodeInstance.h"
-#include "Animation/SkeletalMeshActor.h"
-#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SplineComponent.h"
-#include "Doodle/DoodleEigenHelper.h"
-#include "DrawDebugHelpers.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "NavigationSystem.h"
-#include "UObject/ConstructorHelpers.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Animation/SkeletalMeshActor.h"
+#include "Animation/AnimSingleNodeInstance.h"
+#include "Materials/Material.h"
+
+#include "Doodle/DoodleEigenHelper.h"
 
 ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   PrimaryActorTick.bCanEverTick = true;
@@ -36,9 +35,7 @@ ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   SceneComponentTarget->SetupAttachment(RootComponent);
   SceneComponentTarget->SetRelativeLocation(FVector{200.0, 0.0, 0.0});
 
-  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(
-      TEXT("/Engine/VREditor/BasicMeshes/SM_Cube_01.SM_Cube_01")
-  );
+  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(TEXT("/ControlRig/Controls/ControlRig_Sphere_3mm.ControlRig_Sphere_3mm"));
 
   Target = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
   Target->SetupAttachment(SceneComponentTarget);
@@ -84,8 +81,7 @@ void ADoodleAiArrayGeneration::Tick(float DeltaTime) {
 
 void ADoodleAiArrayGeneration::PostActorCreated() {
   Super::PostActorCreated();
-  UMaterial* L_CraneBaseMaterial =
-      LoadObject<UMaterial>(this, TEXT("/Engine/MapTemplates/Materials/BasicAsset01.BasicAsset01"));
+  UMaterial* L_CraneBaseMaterial       = LoadObject<UMaterial>(this, TEXT("/ControlRig/Controls/ControlRigGizmoMaterial.ControlRigGizmoMaterial"));
   UMaterialInstanceDynamic* L_Material = UMaterialInstanceDynamic::Create(L_CraneBaseMaterial, this);
   L_Material->SetVectorParameterValue(TEXT("Color"), FColor::Red);
   Target->SetMaterial(0, L_Material);
@@ -97,8 +93,7 @@ bool ADoodleAiArrayGeneration::ShouldTickIfViewportsOnly() const {
 }
 
 void ADoodleAiArrayGeneration::BeginPlay() {
-  if (AnimAssets.Num() == 0 || SkinAssets.Num() == 0)
-    return;
+  if (AnimAssets.IsEmpty() || SkinAssets.IsEmpty()) return;
 
   int32 L_Max_Skin = FMath::Max(0, SkinAssets.Num() - 1);
   TMap<USkeleton*, TArray<UAnimationAsset*>> L_Map{};
@@ -116,11 +111,11 @@ void ADoodleAiArrayGeneration::BeginPlay() {
     ASkeletalMeshActor* L_Actor =
         GetWorld()->SpawnActor<ASkeletalMeshActor>(i.GetLocation(), i.GetRotation().Rotator());
     // L_Actor->SetActorTransform(i);
-    USkeletalMesh* L_Skin = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
-    auto L_Array          = L_Map.Find(L_Skin->GetSkeleton());
+    TObjectPtr L_Skin = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
+    auto L_Array      = L_Map.Find(L_Skin->GetSkeleton());
     if (!L_Array) continue;
-    if (L_Array->Num() == 0) continue;
-    UAnimationAsset* L_Anim            = (*L_Array)[RandomStream_Anim.RandRange(0, L_Array->Num() - 1)];
+    if (L_Array->IsEmpty()) continue;
+    TObjectPtr<UAnimationAsset> L_Anim = (*L_Array)[RandomStream_Anim.RandRange(0, L_Array->Num() - 1)];
     USkeletalMeshComponent* L_Sk_Com   = L_Actor->GetSkeletalMeshComponent();
     L_Sk_Com->SetSkeletalMesh(L_Skin);
     L_Sk_Com->PlayAnimation(L_Anim, true);
@@ -143,11 +138,11 @@ void ADoodleAiArrayGeneration::GenPoint() {
   Preview_InstancedStaticMeshComponent->ClearInstances();
   Preview_InstancedStaticMeshComponent->SetStaticMesh(Preview_Mesh);
 
-  FBox L_Box_                  = SplineComponent->Bounds.GetBox();
+  FBox L_Box_                  = SplineComponent->GetLocalBounds().TransformBy(GetTransform()).GetBox();
   FVector L_Row_Step           = L_Box_.GetSize();
-  float L_Row_Step_X           = L_Row_Step.X / FMath::Clamp((double)Row, 1.0, 1000.0);
-  float L_Row_Step_Y           = L_Row_Step.Y / FMath::Clamp((double)Column, 1.0, 1000.0);
-  float L_Max                  = L_Row_Step.GetAbsMax() / FMath::Clamp((double)FMath::Max(Row, Column), 1.0, 1000.0);
+  double L_Row_Step_X          = L_Row_Step.X / FMath::Clamp((double)Row, 1.0, 1000.0);
+  double L_Row_Step_Y          = L_Row_Step.Y / FMath::Clamp((double)Column, 1.0, 1000.0);
+  double L_Max                 = L_Row_Step.GetAbsMax() / FMath::Clamp((double)FMath::Max(Row, Column), 1.0, 1000.0);
 
   const FVector L_Preview_Size = FVector{L_Max, L_Max, L_Max} / 20;
   Target->SetRelativeScale3D(L_Preview_Size / 10);
@@ -155,9 +150,9 @@ void ADoodleAiArrayGeneration::GenPoint() {
 
   // DrawDebugLine(GetWorld(), GetActorTransform().GetLocation(), GetActorTransform().GetLocation() + L_Vector * 50,
   // FColor::Red, false, 10.f);
-  // DrawDebugBox(GetWorld(), L_Box_.GetCenter(), L_Box_.GetExtent(), FColor::Red, false, 10.f);
-  for (auto x = 0.0f; x <= FMath::Clamp(Row, 1, 1000); ++x) {
-    for (auto y = 0.0f; y <= FMath::Clamp(Column, 1, 1000); ++y) {
+
+  for (auto x = 0.0; x <= FMath::Clamp(Row, 1, 1000); ++x) {
+    for (auto y = 0.0; y <= FMath::Clamp(Column, 1, 1000); ++y) {
       FVector L_Point     = L_Box_.Min + FVector{L_Row_Step_X * x, L_Row_Step_Y * y, 0};
       const float L_Param = SplineComponent->FindInputKeyClosestToWorldLocation(L_Point);
       FVector2D L_RightVector_2D{
@@ -180,7 +175,7 @@ void ADoodleAiArrayGeneration::GenPoint() {
             FTransform L_Ftran{GetRandomOrient(L_Point_Out), L_Point_Out};
             Points.Add(L_Ftran);
 
-            Preview_InstancedStaticMeshComponent->AddInstanceWorldSpace(L_Ftran);
+            Preview_InstancedStaticMeshComponent->AddInstance(L_Ftran, true);
             // DrawDebugPoint(GetWorld(), L_Point_Out, 10.0f, FColor::Green, false, 1.0f);
           }
         }
@@ -196,7 +191,7 @@ FQuat ADoodleAiArrayGeneration::GetRandomOrient(const FVector& In_Origin) {
 }
 
 FQuat ADoodleAiArrayGeneration::GetRandomOrient(const FVector& In_Origin, const FVector& In_Look) {
-  static constexpr float Pi = 3.1415926535897932384626433832795;
+  static constexpr double Pi = 3.1415926535897932384626433832795;
   FQuat L_R{FQuat::Identity};
 
   FVector L_Origin{In_Origin.X, In_Origin.Y, 0.0};
@@ -206,7 +201,7 @@ FQuat ADoodleAiArrayGeneration::GetRandomOrient(const FVector& In_Origin, const 
 
   FQuat G_R{FVector::UpVector, -0.5 * Pi};
 
-  G_R *= FQuat{FVector::UpVector, (((float)RandomStream_Orient.RandRange(RandomOrient.X * 100, RandomOrient.Y * 100)) / 100) * Pi};
+  G_R *= FQuat{FVector::UpVector, (((double)RandomStream_Orient.RandRange(RandomOrient.X * 100, RandomOrient.Y * 100)) / 100) * Pi};
 
   return G_R * L_Loc.ToOrientationQuat();
 }
@@ -236,15 +231,76 @@ void ADoodleAiArrayGeneration::OnConstruction(const FTransform& Transform) {
 }
 
 void ADoodleAiArrayGeneration::K_Means_Clustering() {
-}
+  Eigen::MatrixX3d L_Points{Points.Num(), 3};
+  for (auto k = 0; k < L_Points.rows(); ++k) {
+    FVector L_Loc   = Points[k].GetLocation();
+    L_Points.row(k) = Eigen::Vector3d{L_Loc.X, L_Loc.Y, L_Loc.Z};
+    // L_Points << Eigen::Vector3d{L_Loc.X, L_Loc.Y, L_Loc.Z};
+  }
 
-#if WITH_EDITOR
-void ADoodleAiArrayGeneration::PostEditChangeProperty(
-    FPropertyChangedEvent& PropertyChangeEvent
-) {
-  Super::PostEditChangeProperty(PropertyChangeEvent);
-  // FName name2 = PropertyChangeEvent.GetPropertyName();
-  // FName name  = PropertyChangeEvent.MemberProperty ? PropertyChangeEvent.MemberProperty->GetFName() : NAME_None;
-  // UE_LOG(LogTemp, Log, TEXT("chick name: %s MemberProperty: %s"), *name2.ToString(), *name.ToString());
+  // for (auto k = 0; k < L_Points.rows(); ++k) {
+  //   Eigen::Vector3d L_point = L_Points.row(k);
+  //   DrawDebugPoint(GetWorld(), FVector{L_point.x(), L_point.y(), L_point.z()}, 10.0f, FColor::Green, false, 1.0f);
+  // }
+  // for (auto k = 0; k < L_Points.rows(); ++k)
+  //   UE_LOG(LogTemp, Log, TEXT("UE %s, Eigen %s"), *Points[k].GetLocation().ToString(), *Doodle::EigenMatrixToString(L_Points.row(k)));
+
+  Eigen::Vector3d L_Norm = L_Points.colwise().mean();
+  L_Points.rowwise() -= L_Norm.transpose();
+
+  // for (auto k = 0; k < L_Points.rows(); ++k) {
+  //   Eigen::Vector3d L_point = L_Points.row(k);
+  //   DrawDebugPoint(GetWorld(), FVector{L_point.x(), L_point.y(), L_point.z()}, 10.0f, FColor::Green, false, 1.0f);
+  // }
+  Eigen::MatrixX3d L_Centroids = Eigen::MatrixX3d::Random(ClusterPointNum, 3) * L_Points.colwise().maxCoeff().norm();
+
+  Eigen::VectorXd L_Labels{L_Points.rows(), 1};
+  for (auto i = 0; i < ClusterIter; ++i) {
+    for (auto j = 0; j < L_Points.rows(); ++j) {
+      double L_min_dist = std::numeric_limits<double>::max();
+      int L_Label{0};
+
+      for (auto k = 0; k < L_Centroids.rows(); ++k) {
+        double L_Dist = (L_Points.row(j) - L_Centroids.row(k)).norm();
+        if (L_Dist < L_min_dist) {
+          L_min_dist = L_Dist;
+          L_Label    = k;
+        }
+      }
+
+      L_Labels[j] = L_Label;
+    }
+
+    for (auto k = 0; k < L_Centroids.rows(); ++k) {
+      Eigen::MatrixX3d LL_Centroids;
+      for (auto j = 0; j < L_Labels.rows(); ++j) {
+        if (L_Labels[j] == k) {
+          LL_Centroids.conservativeResize(LL_Centroids.rows() + 1, Eigen::NoChange);
+          LL_Centroids.row(LL_Centroids.rows() - 1) = L_Points.row(j);
+        }
+      }
+
+      if (LL_Centroids.rows() > 0) {
+        L_Centroids.row(k) = LL_Centroids.colwise().mean();
+      }
+    }
+
+    // for (auto k = 0; k < L_Centroids.rows(); ++k) {
+    //   Eigen::Vector3d L_point = L_Centroids.row(k);
+    //   DrawDebugPoint(GetWorld(), FVector{L_point.x(), L_point.y(), L_point.z()}, 10.0f, FColor::Red, false, 1.0f);
+    // }
+  }
+
+  for (auto j = 0; j < L_Points.rows(); ++j) {
+    Eigen::Vector3d L_point = L_Centroids.row(L_Labels[j]);
+    L_point += L_Norm;
+
+    auto&& L_Tran = Points[j];
+    FVector L_Look{L_point.x(), L_point.y(), L_point.z()};
+    L_Tran.SetRotation(GetRandomOrient(L_Tran.GetLocation(), L_Look));
+    Preview_InstancedStaticMeshComponent->UpdateInstanceTransform(j, L_Tran, true, true, true);
+
+    DrawDebugPoint(GetWorld(), FVector{L_point.x(), L_point.y(), L_point.z()}, 10.0f, FColor::Red, false, 1.0f);
+    // UE_LOG(LogTemp, Log, TEXT("point %s"), *Doodle::EigenMatrixToString(L_point));
+  }
 }
-#endif  // WITH_EDITOR

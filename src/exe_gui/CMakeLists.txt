@@ -12,15 +12,16 @@ set_target_properties(DoodleExe
 target_link_libraries(DoodleExe
         PUBLIC
         doodle_lib
-        )
+)
 target_compile_definitions(DoodleExe
         PUBLIC
-        #            WIN32_LEAN_AND_MEAN
-        #        ISOLATION_AWARE_ENABLED
-        # ENTT_API_IMPORT
-        )
 
-#target_link_options(DoodleExe PUBLIC /MAP:test.txt)
+        # WIN32_LEAN_AND_MEAN
+        # ISOLATION_AWARE_ENABLED
+        # ENTT_API_IMPORT
+)
+
+# target_link_options(DoodleExe PUBLIC /MAP:test.txt)
 target_link_options(DoodleExe PUBLIC /ENTRY:mainCRTStartup)
 target_link_options(DoodleExe PUBLIC)
 
@@ -29,29 +30,28 @@ set(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT exe_com)
 include(InstallRequiredSystemLibraries)
 
-
 install(TARGETS DoodleExe
         RUNTIME_DEPENDENCIES
         PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-" "hvsifiletrust" "pdmutilities"
         POST_EXCLUDE_REGEXES ".*system32/.*\\.dll"
         COMPONENT exe_com
-        )
-#最后实现camke修复
-
-doodle_install_code_wix(bin exe_com)
-configure_file(install.wxs install.wxs COPYONLY)
-configure_file(install_script.cmake install_script.cmake @ONLY)
-
+)
+# 最后实现camke修复
 install(CODE
         "
-set(DOODLE_RUN_NAME $<TARGET_FILE_NAME:DoodleExe>)
-set(DOODLE_MAIN_EXE $<TARGET_FILE:DoodleExe>)
-set(DOODLE_GENERATE_TOKEN_RUN $<TARGET_FILE:generate_token>)
+# 修复dll
+include(BundleUtilities)
+fixup_bundle(\"$<TARGET_FILE:DoodleExe>\" \"\" \"\"
+        IGNORE_ITEM
+        doodle_maya_exe_2018.exe
+        doodle_maya_exe_2019.exe
+        doodle_maya_exe_2020.exe
+)
 
-include(${CMAKE_CURRENT_BINARY_DIR}/install_script.cmake)
+# 生成授权文件
+execute_process(
+        COMMAND $<TARGET_FILE:generate_token> ${CMAKE_INSTALL_PREFIX}/bin/
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/bin
+)
         "
         COMPONENT exe_com)
-
-
-
-

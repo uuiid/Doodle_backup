@@ -18,11 +18,24 @@
 #include <doodle_lib/core/image_loader.h>
 #include <doodle_lib/gui/widgets/assets_file_widgets.h>
 #include <doodle_lib/gui/widgets/assets_filter_widget.h>
+#include <doodle_lib/gui/widgets/derail/all_user_combox.h>
+#include <doodle_lib/gui/widgets/derail/assets_file_edit.h>
+#include <doodle_lib/gui/widgets/derail/command_edit.h>
+#include <doodle_lib/gui/widgets/derail/episodes_edit.h>
+#include <doodle_lib/gui/widgets/derail/importance_edit.h>
+#include <doodle_lib/gui/widgets/derail/season_edit.h>
+#include <doodle_lib/gui/widgets/derail/shot_edit.h>
+#include <doodle_lib/gui/widgets/derail/time_edit.h>
+#include <doodle_lib/gui/widgets/derail/user_edit.h>
 #include <doodle_lib/gui/widgets/edit_widgets/edit_user.h>
-#include <doodle_lib/gui/widgets/edit_widgets/redirection_path_info_edit.h>
 
+#include <boost/signals2/connection.hpp>
+
+#include "derail/importance_edit.h"
+#include "derail/shot_edit.h"
 #include <core/tree_node.h>
 #include <gui/widgets/database_edit.h>
+
 namespace doodle::gui {
 namespace edit_widgets_ns {}
 
@@ -305,6 +318,7 @@ class add_assets_for_file : public base_render {
   gui_cache<bool> use_time;
   gui_cache<bool> use_icon;
   gui_cache<std::vector<std::string>, combox_show_name> assets_list;
+  boost::signals2::scoped_connection p_sig1{}, p_sig2{};
 
  public:
   add_assets_for_file()
@@ -312,14 +326,14 @@ class add_assets_for_file : public base_render {
         use_time("检查时间"s, true),
         use_icon("寻找图标"s, true),
         assets_list("分类"s, std::vector<std::string>{}) {
-    auto &l_sig = g_reg()->ctx().get<core_sig>();
-    l_sig.project_end_open.connect([this]() {
+    auto &l_sig       = g_reg()->ctx().get<core_sig>();
+    p_sig1            = l_sig.project_end_open.connect([this]() {
       auto &prj                   = g_reg()->ctx().get<project_config::base_config>();
       this->assets_list           = prj.assets_list;
 
       this->assets_list.show_name = this->assets_list.data.empty() ? "null"s : this->assets_list.data.front();
     });
-    l_sig.save_end.connect([this]() {
+    p_sig2            = l_sig.save_end.connect([this]() {
       auto &prj         = g_reg()->ctx().get<project_config::base_config>();
       this->assets_list = prj.assets_list;
       if (!ranges::any_of(this->assets_list.data, [this](const auto &in) -> bool {
@@ -365,41 +379,7 @@ class add_assets_for_file : public base_render {
   };
 };
 
-class add_entt_base : public base_render {
- private:
-  gui_cache<std::int32_t> add_size;
-  gui_cache<std::vector<entt::handle>> list_handle;
-
- public:
-  add_entt_base() : add_size("添加个数", 1), list_handle("添加"s, std::vector<entt::handle>{}){};
-  bool render(const entt::handle &in) override {
-    bool result{false};
-    ImGui::InputInt(*add_size.gui_name, &add_size.data);
-    ImGui::SameLine();
-    if (ImGui::Button(*list_handle.gui_name)) {
-      for (std::int32_t i = 0; i < add_size; ++i) {
-        auto l_h = list_handle.data.emplace_back(make_handle());
-        l_h.emplace<database>();
-        database::save(l_h);
-      }
-      g_reg()->ctx().get<core_sig>().filter_handle(list_handle);
-    }
-    return result;
-  }
-};
-
 class edit_widgets::impl {
- public:
-  std::vector<boost::signals2::scoped_connection> p_sc;
-
- public:
-  /**
-   * @brief 添加句柄
-   *
-   */
-  std::int32_t p_add_size = 1;
-  std::vector<entt::handle> add_handles;
-
  public:
   /**
    * @brief 修改句柄
@@ -407,63 +387,29 @@ class edit_widgets::impl {
    */
   std::vector<entt::handle> p_h;
 
-  database_edit data_edit;
-  assets_edit *assets_edit;
+  render::season_edit_t season_edit{};
+  render::episodes_edit_t episodes_edit{};
+  render::shot_edit_t shot_edit{};
+  render::assets_file_edit_t assets_file_edit{};
+  render::command_edit_t command_edit{};
+  render::importance_edit_t importance_edit{};
+  render::time_edit_t time_edit{};
 
-  using gui_edit_cache = gui_cache<std::unique_ptr<edit_interface>>;
-  using gui_add_cache  = gui_cache<std::unique_ptr<base_render>>;
-  std::vector<gui_edit_cache> p_edit;
-  std::vector<gui_add_cache> p_add;
   std::string title_name_;
   bool open{true};
+  boost::signals2::scoped_connection p_sc;
 };
 
 edit_widgets::edit_widgets() : p_i(std::make_unique<impl>()) {
   p_i->title_name_ = std::string{name};
-  init();
+  g_reg()->ctx().emplace<edit_widgets &>(*this);
+  auto &l_sig = g_reg()->ctx().get<core_sig>();
+  p_i->p_sc   = l_sig.select_handles.connect([&](const std::vector<entt::handle> &in) { p_i->p_h = in; });
 }
 edit_widgets::~edit_widgets() = default;
 
-void edit_widgets::init() {
-  p_i->p_edit.emplace_back("季数编辑"s, std::make_unique<season_edit>());
-  p_i->p_edit.emplace_back("集数编辑"s, std::make_unique<episodes_edit>());
-  p_i->p_edit.emplace_back("镜头编辑"s, std::make_unique<shot_edit>());
-  p_i->p_edit.emplace_back("文件编辑"s, std::make_unique<assets_file_edit>());
-  p_i->p_edit.emplace_back("用户编辑"s, std::make_unique<edit_user>());
-  p_i->p_edit.emplace_back("备注"s, std::make_unique<command_edit>());
-  p_i->p_edit.emplace_back("等级"s, std::make_unique<importance_edit>());
-  auto *l_edit     = p_i->p_edit.emplace_back("资产类别"s, std::make_unique<assets_edit>()).data.get();
-
-  p_i->assets_edit = dynamic_cast<assets_edit *>(l_edit);
-
-  p_i->p_edit.emplace_back("时间编辑"s, std::make_unique<time_edit>());
-  p_i->p_edit.emplace_back("替换规则"s, std::make_unique<redirection_path_info_edit>());
-
-  /// \brief 连接信号
-  ranges::for_each(p_i->p_edit, [this](impl::gui_edit_cache &in_edit) { p_i->data_edit.link_sig(in_edit.data); });
-
-  p_i->p_add.emplace_back("添加"s, std::make_unique<add_entt_base>());
-  p_i->p_add.emplace_back("文件添加"s, std::make_unique<add_assets_for_file>());
-
-  g_reg()->ctx().emplace<edit_widgets &>(*this);
-  auto &l_sig = g_reg()->ctx().get<core_sig>();
-  p_i->p_sc.emplace_back(l_sig.select_handles.connect([&](const std::vector<entt::handle> &in) {
-    p_i->p_h = in;
-    p_i->data_edit.init(p_i->p_h);
-    ranges::for_each(p_i->p_edit, [&](impl::gui_edit_cache &in_edit) { in_edit.data->init(p_i->p_h); });
-  }));
-  /**
-   * @brief 保存时禁用编辑
-   */
-  p_i->p_sc.emplace_back(l_sig.project_begin_open.connect([&](const FSys::path &) {
-    this->p_i->add_handles.clear();
-    this->p_i->p_h = {};
-  }));
-}
-
 bool edit_widgets::render() {
-  dear::TreeNode{"添加"} && [this]() { this->add_handle(); };
-  dear::TreeNode{"编辑"} && [this]() { this->edit_handle(); };
+  this->edit_handle();
   return p_i->open;
 }
 
@@ -472,26 +418,13 @@ void edit_widgets::edit_handle() {
   if (!p_i->p_h.empty()) {
     const auto l_args = p_i->p_h.size();
     if (l_args > 1) dear::Text(fmt::format("同时编辑了 {}个", l_args));
-    p_i->data_edit.render(p_i->p_h.front());
-    ranges::for_each(p_i->p_edit, [&](impl::gui_edit_cache &in_edit) {
-      dear::Text(in_edit.gui_name.name);
-      in_edit.data->render(p_i->p_h.front());
-      in_edit.data->save(p_i->p_h);
-    });
-    p_i->data_edit.save(p_i->p_h);
-  }
-
-  //  p_i->data_edit.save(p_i->p_h);
-}
-
-void edit_widgets::add_handle() {
-  /**
-   * @brief 添加多个
-   *
-   */
-  for (auto &&l_add : p_i->p_add) {
-    dear::Text(l_add.gui_name.name);
-    l_add.data->render();
+    p_i->season_edit.render(p_i->p_h.front());
+    p_i->episodes_edit.render(p_i->p_h.front());
+    p_i->shot_edit.render(p_i->p_h.front());
+    p_i->assets_file_edit.render(p_i->p_h.front());
+    p_i->command_edit.render(p_i->p_h.front());
+    p_i->importance_edit.render(p_i->p_h.front());
+    p_i->time_edit.render(p_i->p_h.front());
   }
 }
 

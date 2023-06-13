@@ -10,7 +10,9 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/dll.hpp>
 
+#include "core/file_sys.h"
 #include <Windows.h>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <shellapi.h>
 #include <tchar.h>
@@ -137,11 +139,38 @@ FSys::path write_tmp_file(
 }
 
 FSys::path from_quotation_marks(const std::string &in_string) {
+  if (in_string.empty()) return FSys::path{};
   if (*in_string.begin() == '"' && *(--in_string.end()) == '"') {
     return FSys::path{in_string.substr(1, in_string.size() - 1)};
   }
   return FSys::path{in_string};
 }
+
+FSys::path get_cache_path() { return FSys::temp_directory_path() / "Doodle" / "cache"; }
+FSys::path get_cache_path(const FSys::path &in_path) {
+  auto l_tmp = get_cache_path() / in_path;
+  if (!FSys::exists(l_tmp)) FSys::create_directories(l_tmp);
+  return l_tmp;
+}
+
+bool folder_is_save(const FSys::path &in_file_path) {
+  auto l_path = FSys::is_regular_file(in_file_path) ? in_file_path.parent_path() : in_file_path;
+  auto l_temp = l_path / core_set::get_set().get_uuid_str();
+  try {
+    FSys::fstream{l_temp, std::ios::out} << "test_file";
+  } catch (const FSys::filesystem_error &e) {
+    DOODLE_LOG_INFO("文件 {} 不可写入 {}", l_path.generic_string(), e.what());
+    return false;
+  }
+  try {
+    FSys::remove(l_temp);
+  } catch (const FSys::filesystem_error &e) {
+    DOODLE_LOG_INFO("文件 {} 不可删除 {}", l_path.generic_string(), e.what());
+    return false;
+  }
+  return true;
+}
+
 }  // namespace doodle::FSys
 
 #ifndef USE_STD_FSYS

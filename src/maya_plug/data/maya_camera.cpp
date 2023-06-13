@@ -12,6 +12,7 @@
 #include <maya_plug/data/reference_file.h>
 #include <maya_plug/main/maya_plug_fwd.h>
 
+#include "exception/exception.h"
 #include <maya/MDGModifier.h>
 #include <maya/MFnCamera.h>
 #include <maya/MFnDagNode.h>
@@ -65,7 +66,7 @@ bool maya_camera::export_file(
   k_s    = MGlobal::executeCommand(d_str{k_comm});
   DOODLE_MAYA_CHICK(k_s);
 
-  k_comm = std::string{"FBXExportConstraints -v true;"};
+  k_comm = std::string{"FBXExportConstraints -v false;"};
   k_s    = MGlobal::executeCommand(d_str{k_comm});
   DOODLE_MAYA_CHICK(k_s);
 
@@ -73,16 +74,6 @@ bool maya_camera::export_file(
   k_s    = MGlobal::executeCommand(d_str{k_comm});
   DOODLE_MAYA_CHICK(k_s);
 
-  if (g_reg()->ctx().get<project_config::base_config>().use_write_metadata) {
-    auto l_h = make_handle();
-    episodes::analysis_static(l_h, k_file_path);
-    shot::analysis_static(l_h, k_file_path);
-
-    l_h.emplace<export_file_info>(
-        k_file_path, in_start.value(), in_end.value(), FSys::path{}, export_file_info::export_type::camera
-    );
-    export_file_info::write_file(l_h);
-  }
   return true;
 }
 bool maya_camera::back_camera(const MTime& in_start, const MTime& in_end) {
@@ -240,6 +231,9 @@ void maya_camera::set_play_attr() {
   DOODLE_MAYA_CHICK(k_s);
   k_s = k_cam_fn.setNearClippingPlane(1);
   DOODLE_MAYA_CHICK(k_s);
+  maya_chick(k_cam_fn.setNearClippingPlane(10));
+
+  MGlobal::executeCommand(R"(setAttr "hardwareRenderingGlobals.multiSampleEnable" 1;)");
 
   auto k_displayResolution = k_cam_fn.findPlug("displayResolution", true, &k_s);
   DOODLE_MAYA_CHICK(k_s);

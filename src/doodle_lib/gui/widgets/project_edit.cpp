@@ -4,6 +4,7 @@
 
 #include "project_edit.h"
 
+#include "doodle_core/core/core_help_impl.h"
 #include <doodle_core/core/core_sig.h>
 #include <doodle_core/core/init_register.h>
 #include <doodle_core/metadata/project.h>
@@ -68,19 +69,9 @@ class project_edit::impl {
 
   gui_cache<bool> use_only_sim_cloth{"只导出解算模型"s, false};
   gui_cache<bool> use_divide_group_export{"使用组划分导出"s, false};
-  gui_cache<bool> use_rename_material{"重命名材质"s, true};
-  gui_cache<bool> use_merge_mesh{"合并网格体"s, true};
+
   gui_cache<std::int32_t> t_post{"TPost时间"s, 950};
   gui_cache<std::int32_t> export_anim_time{"导出动画开始帧"s, 1001};
-
-  gui_cache<bool> abc_arg_uvWrite{"uv写入", false};
-  gui_cache<bool> abc_arg_writeColorSets{"写入颜色集", false};
-  gui_cache<bool> abc_arg_writeFaceSets{"写入面集", false};
-  gui_cache<bool> abc_arg_wholeFrameGeo{"整帧几何体", false};
-  gui_cache<bool> abc_arg_worldSpace{"世界空间", false};
-  gui_cache<bool> abc_arg_writeVisibility{"写入可见性", false};
-  gui_cache<bool> abc_arg_writeUVSets{"写入uv集", false};
-  gui_cache<bool> abc_arg_stripNamespaces{"分裂名称空间", false};
 
   camera_judge_table_gui camera_judge_gui_attr{};
   gui_cache<std::string> abc_export_extract_reference_name{"重新提取引用名称"s, ""s};
@@ -91,13 +82,12 @@ class project_edit::impl {
 
   gui_cache<bool> abc_export_add_frame_range{"导出附加范围"s, true};
 
-  gui_cache<bool> use_write_metadata{"写出元数据", true};
   gui_cache<std::string> maya_camera_suffix{"相机后缀"s, "camera"s};
   gui_cache<std::string> maya_out_put_abc_suffix{"分组导出abc寻找后缀"s, "_output_abc"s};
 
   std::vector<boost::signals2::scoped_connection> scoped_connections_;
   std::string title_name_;
-  bool open;
+  bool open{true};
 
   void config_init() {
     auto&& l_prj         = g_reg()->ctx().get<project>();
@@ -125,20 +115,9 @@ class project_edit::impl {
 
     use_only_sim_cloth      = l_config.use_only_sim_cloth;
     use_divide_group_export = l_config.use_divide_group_export;
-    use_rename_material     = l_config.use_rename_material;
-    use_merge_mesh          = l_config.use_merge_mesh;
+
     t_post                  = l_config.t_post;
     export_anim_time        = l_config.export_anim_time;
-
-    /// \brief 设置未集
-    abc_arg_uvWrite         = l_config.export_abc_arg[0];
-    abc_arg_writeColorSets  = l_config.export_abc_arg[1];
-    abc_arg_writeFaceSets   = l_config.export_abc_arg[2];
-    abc_arg_wholeFrameGeo   = l_config.export_abc_arg[3];
-    abc_arg_worldSpace      = l_config.export_abc_arg[4];
-    abc_arg_writeVisibility = l_config.export_abc_arg[5];
-    abc_arg_writeUVSets     = l_config.export_abc_arg[6];
-    abc_arg_stripNamespaces = l_config.export_abc_arg[7];
 
     camera_judge_gui_attr.camera_judge_list_gui =
         l_config.maya_camera_select |
@@ -147,7 +126,6 @@ class project_edit::impl {
         }) |
         ranges::to_vector;
 
-    use_write_metadata()                = l_config.use_write_metadata;
     abc_export_extract_reference_name() = l_config.abc_export_extract_reference_name;
     abc_export_format_reference_name()  = l_config.abc_export_format_reference_name;
     abc_export_extract_scene_name()     = l_config.abc_export_extract_scene_name;
@@ -182,26 +160,15 @@ class project_edit::impl {
 
     l_c.use_only_sim_cloth      = use_only_sim_cloth;
     l_c.use_divide_group_export = use_divide_group_export;
-    l_c.use_rename_material     = use_rename_material;
-    l_c.use_merge_mesh          = use_merge_mesh;
+
     l_c.t_post                  = t_post;
     l_c.export_anim_time        = export_anim_time;
-    /// \brief 传递位集
-    l_c.export_abc_arg[0]       = abc_arg_uvWrite();
-    l_c.export_abc_arg[1]       = abc_arg_writeColorSets();
-    l_c.export_abc_arg[2]       = abc_arg_writeFaceSets();
-    l_c.export_abc_arg[3]       = abc_arg_wholeFrameGeo();
-    l_c.export_abc_arg[4]       = abc_arg_worldSpace();
-    l_c.export_abc_arg[5]       = abc_arg_writeVisibility();
-    l_c.export_abc_arg[6]       = abc_arg_writeUVSets();
-    l_c.export_abc_arg[7]       = abc_arg_stripNamespaces();
 
     l_c.maya_camera_select      = camera_judge_gui_attr.camera_judge_list_gui |
                              ranges::views::transform([](auto&& in) -> project_config::camera_judge {
                                return project_config::camera_judge{in};
                              }) |
                              ranges::to_vector;
-    l_c.use_write_metadata                = use_write_metadata();
     l_c.abc_export_extract_reference_name = abc_export_extract_reference_name();
     l_c.abc_export_format_reference_name  = abc_export_format_reference_name();
     l_c.abc_export_extract_scene_name     = abc_export_extract_scene_name();
@@ -225,10 +192,6 @@ void project_edit::init() {
   p_i->scoped_connections_.emplace_back(g_reg()->ctx().get<core_sig>().project_end_open.connect([this]() {
     p_i->config_init();
   }));
-  p_i->scoped_connections_.emplace_back(g_reg()->ctx().get<core_sig>().save.connect(1, [this]() {
-    g_reg()->ctx().get<project_config::base_config>() = p_i->get_config_();
-    g_reg()->ctx().get<project>().set_name(p_i->project_name.data);
-  }));
 }
 
 bool project_edit::render() {
@@ -245,11 +208,8 @@ bool project_edit::render() {
   ImGui::Checkbox(*p_i->use_divide_group_export, &p_i->use_divide_group_export);
   if (p_i->use_divide_group_export()) ImGui::InputText(*p_i->maya_out_put_abc_suffix, &p_i->maya_out_put_abc_suffix);
 
-  ImGui::Checkbox(*p_i->use_rename_material, &p_i->use_rename_material);
-  ImGui::Checkbox(*p_i->use_merge_mesh, &p_i->use_merge_mesh);
   ImGui::InputInt(*p_i->t_post, &p_i->t_post);
   ImGui::InputInt(*p_i->export_anim_time, &p_i->export_anim_time);
-  ImGui::Checkbox(*p_i->use_write_metadata, &p_i->use_write_metadata);
 
   ImGui::Text("相机优先级配置:");
   if (ImGui::Button(*p_i->camera_judge_gui_attr.add_camera_judge_list_gui)) {
@@ -280,14 +240,7 @@ bool project_edit::render() {
   imgui::InputText(*p_i->maya_camera_suffix, &(p_i->maya_camera_suffix));
 
   ImGui::Text("导出abc配置:");
-  ImGui::Checkbox(*p_i->abc_arg_uvWrite, &p_i->abc_arg_uvWrite);
-  ImGui::Checkbox(*p_i->abc_arg_writeColorSets, &p_i->abc_arg_writeColorSets);
-  ImGui::Checkbox(*p_i->abc_arg_writeFaceSets, &p_i->abc_arg_writeFaceSets);
-  ImGui::Checkbox(*p_i->abc_arg_wholeFrameGeo, &p_i->abc_arg_wholeFrameGeo);
-  ImGui::Checkbox(*p_i->abc_arg_worldSpace, &p_i->abc_arg_worldSpace);
-  ImGui::Checkbox(*p_i->abc_arg_writeVisibility, &p_i->abc_arg_writeVisibility);
-  ImGui::Checkbox(*p_i->abc_arg_writeUVSets, &p_i->abc_arg_writeUVSets);
-  ImGui::Checkbox(*p_i->abc_arg_stripNamespaces, &p_i->abc_arg_stripNamespaces);
+
   ImGui::InputText(*p_i->abc_export_extract_reference_name, &p_i->abc_export_extract_reference_name);
   ImGui::InputText(*p_i->abc_export_format_reference_name, &p_i->abc_export_format_reference_name);
   ImGui::InputText(*p_i->abc_export_extract_scene_name, &p_i->abc_export_extract_scene_name);
@@ -349,7 +302,20 @@ bool project_edit::render() {
   ImGui::InputText(*p_i->upload_path.gui_name, &p_i->upload_path.data);
   ImGui::InputInt(*p_i->season_count.gui_name, &p_i->season_count.data);
 
-  if (ImGui::Button("保存")) g_reg()->ctx().get<core_sig>().save();
+  if (ImGui::Button("保存")) {
+    for (auto e : g_reg()->view<project_config::base_config>()) {
+      g_reg()->patch<project_config::base_config>(e) = p_i->get_config_();
+      break;
+    }
+    for (auto e : g_reg()->view<project>()) {
+      g_reg()->patch<project>(e).set_name(p_i->project_name.data);
+      break;
+    }
+    g_reg()->ctx().get<project_config::base_config>() = p_i->get_config_();
+    g_reg()->ctx().get<project>().set_name(p_i->project_name.data);
+
+    g_reg()->ctx().get<core_sig>().save();
+  }
 
   return p_i->open;
 }

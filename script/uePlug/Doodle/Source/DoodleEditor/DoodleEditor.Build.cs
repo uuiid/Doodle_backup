@@ -110,6 +110,10 @@ public class doodleEditor : ModuleRules
                 "CurveEditor",//添加曲线编辑模块
                 "Persona",//骨骼
                 "TimeManagement",// 添加时间管理
+                //"Foliage", // 导出场景使用
+                "MeshDescription",//修改sk使用
+                "MeshBuilder",//修改sk使用
+                "DoodleAbc", // 我们自己的导入
 
             }
             );

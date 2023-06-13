@@ -17,10 +17,6 @@
 #include <core/core_set.h>
 #include <entt/entity/fwd.hpp>
 #include <functional>
-#include <rttr/constructor.h>
-#include <rttr/policy.h>
-#include <rttr/registration.h>
-#include <rttr/registration>
 
 namespace doodle {
 
@@ -28,7 +24,7 @@ class assets_file::impl {
  public:
   FSys::path path{};
   std::string p_name{};
-  std::uint64_t p_version{};
+  std::uint32_t p_version{};
 
   std::string organization_p{};
 };
@@ -62,7 +58,7 @@ assets_file::assets_file(const FSys::path& in_path) : assets_file() {
   p_i->organization_p = core_set::get_set().organization_name;
 }
 
-assets_file::assets_file(const FSys::path& in_path, std::string in_name, std::uint64_t in_version) : assets_file() {
+assets_file::assets_file(const FSys::path& in_path, std::string in_name, std::uint32_t in_version) : assets_file() {
   p_i->path           = in_path;
   p_i->p_name         = std::move(in_name);
   p_i->p_version      = in_version;
@@ -86,9 +82,9 @@ void assets_file::user_attr(const entt::handle& in_user) {
   user_ref.user_attr(in_user);
 }
 
-const std::uint64_t& assets_file::version_attr() const noexcept { return p_i->p_version; }
+const std::uint32_t& assets_file::version_attr() const noexcept { return p_i->p_version; }
 
-void assets_file::version_attr(const std::uint64_t& in_Version) noexcept { p_i->p_version = in_Version; }
+void assets_file::version_attr(const std::uint32_t& in_Version) noexcept { p_i->p_version = in_Version; }
 FSys::path assets_file::get_path_normal() const {
   DOODLE_CHICK(g_reg()->ctx().contains<project>(), doodle_error{"缺失项目上下文"});
   if (p_i->path.has_root_path())
@@ -119,9 +115,4 @@ void assets_file::organization_attr(const std::string& in_organization) noexcept
 }
 assets_file::~assets_file() = default;
 
-RTTR_REGISTRATION {
-  using namespace rttr;
-  using namespace doodle;
-  registration::class_<doodle::assets_file>("doodle::assets_file").constructor()();
-}
 }  // namespace doodle

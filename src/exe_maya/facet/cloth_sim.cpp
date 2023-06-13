@@ -4,16 +4,18 @@
 
 #include "cloth_sim.h"
 
-#include "doodle_core/core/core_help_impl.h"
 #include "doodle_core/core/file_sys.h"
 #include "doodle_core/core/global_function.h"
 #include "doodle_core/database_task/sqlite_client.h"
+#include "doodle_core/logger/logger.h"
 #include <doodle_core/core/doodle_lib.h>
 #include <doodle_core/doodle_core.h>
 
 #include <doodle_app/app/program_options.h>
 
 #include "doodle_lib/exe_warp/maya_exe.h"
+
+#include <fmt/format.h>
 
 #ifdef fsin
 #undef fsin
@@ -61,20 +63,29 @@ bool cloth_sim::post() {
 
   if (l_arg.file_path.empty()) return l_ret;
 
-  anim_begin_time_ = MTime{boost::numeric_cast<std::double_t>(l_arg.export_anim_time), MTime::uiUnit()};
-  t_post_time_     = MTime{boost::numeric_cast<std::double_t>(l_arg.t_post), MTime::uiUnit()};
-  lib_guard_       = std::make_shared<maya_lib_guard>();
-  l_ret            = true;
+  lib_guard_ = std::make_shared<maya_lib_guard>();
+
+  l_ret      = true;
 
   doodle_lib::Get().ctx().get<database_n::file_translator_ptr>()->open_(l_arg.project_);
   doodle_lib::Get().ctx().emplace<image_to_move>(std::make_shared<detail::image_to_move>());
   maya_chick(MGlobal::executeCommand(R"(loadPlugin "AbcExport";)"));
   maya_chick(MGlobal::executeCommand(R"(loadPlugin "AbcImport";)"));
+#if MAYA_API_VERSION >= 20190000
   MGlobal::executeCommand(d_str{fmt::format(R"(loadPlugin "qualoth_{}_x64")", MAYA_APP_VERSION)});
+#else
+  MGlobal::executeCommand(d_str{
+      fmt::format(R"(loadPlugin "qualoth_{}_x64")", fmt::to_string(MAYA_API_VERSION).substr(0, 4))});
+#endif
 
   maya_file_io::set_workspace(l_arg.file_path);
 
   maya_file_io::open_file(l_arg.file_path);
+  anim_begin_time_ = MTime{boost::numeric_cast<std::double_t>(l_arg.export_anim_time), MTime::uiUnit()};
+  t_post_time_     = MTime{boost::numeric_cast<std::double_t>(l_arg.t_post), MTime::uiUnit()};
+  DOODLE_LOG_INFO("tpost 开始时间 {}", t_post_time_);
+  maya_chick(MAnimControl::setMinTime(t_post_time_));
+  maya_chick(MAnimControl::setAnimationStartTime(t_post_time_));
 
   doodle_lib::Get().ctx().emplace<reference_file_factory>();
 
@@ -89,12 +100,15 @@ bool cloth_sim::post() {
     boost::asio::post(l_s, [l_s, this]() { this->replace_ref_file(); });
   }
 
+  boost::asio::post(l_s, [l_s, this]() { this->create_cloth(); });
+
+  if ((l_arg.bitset_ & maya_exe_ns::flags::k_replace_ref_file).any()) {
+    boost::asio::post(l_s, [l_s, this]() { this->set_cloth_attr(); });
+  }
+
   if ((l_arg.bitset_ & maya_exe_ns::flags::k_sim_file).any()) {
     DOODLE_LOG_INFO("安排解算布料");
-    boost::asio::post(l_s, [l_s, this]() {
-      this->create_cloth();
-      this->sim();
-    });
+    boost::asio::post(l_s, [l_s, this]() { this->sim(); });
   }
   if ((l_arg.bitset_ & maya_exe_ns::flags::k_create_play_blast).any()) {
     DOODLE_LOG_INFO("安排排屏");
@@ -102,11 +116,11 @@ bool cloth_sim::post() {
   }
   if ((l_arg.bitset_ & maya_exe_ns::flags::k_export_fbx_type).any()) {
     DOODLE_LOG_INFO("安排导出fbx");
-    boost::asio::post(l_s, [l_s, this]() { this->export_abc(); });
+    boost::asio::post(l_s, [l_s, this]() { this->export_fbx(); });
   }
   if ((l_arg.bitset_ & maya_exe_ns::flags::k_export_abc_type).any()) {
     DOODLE_LOG_INFO("安排导出abc");
-    boost::asio::post(l_s, [l_s, this]() { this->export_fbx(); });
+    boost::asio::post(l_s, [l_s, this]() { this->export_abc(); });
   }
 
   return l_ret;

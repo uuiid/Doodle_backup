@@ -96,12 +96,6 @@ class DOODLE_API ADoodleAiArrayGeneration : public AActor {
   virtual bool ShouldTickIfViewportsOnly() const override;
   virtual void BeginPlay() override;
 
-#if WITH_EDITOR
-  void PostEditChangeProperty(
-      FPropertyChangedEvent &PropertyChangeEvent
-  ) override;
-#endif  // WITH_EDITOR
-
  private:
   UPROPERTY()
   FRandomStream RandomStream_Orient;

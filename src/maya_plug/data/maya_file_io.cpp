@@ -7,8 +7,15 @@
 #include <maya_plug/data/reference_file.h>
 #include <maya_plug/main/maya_plug_fwd.h>
 
+// #include <Windows.h>
 #include <maya/MFileIO.h>
 #include <maya/MFileObject.h>
+//
+// #ifdef WIN32
+// #undef WIN32
+// #endif
+//
+// #define WIN32
 #include <maya/adskDataAssociations.h>
 #include <maya/adskDataStream.h>
 #include <maya/adskDebugPrint.h>
@@ -71,9 +78,9 @@ bool maya_file_io::replace_channel_date(const std::string& in_string) {
   k_stream->setElement(0, k_h);
   MFileIO::setMetadata(k_meta);
 
-  adsk::Debug::Print k_p{std::cout};
-  decltype(k_meta)::Debug(&k_meta, k_p);
-  k_p.endSection();
+  //  adsk::Debug::Print k_p{std::cout};
+  //  decltype(k_meta)::Debug(&k_meta, k_p);
+  //  k_p.endSection();
   return true;
 }
 bool maya_file_io::save_file(const FSys::path& in_file_path) {
@@ -140,7 +147,7 @@ void maya_file_io::set_workspace(const FSys::path& in_path) {
 
   if (!FSys::exists(l_path / "workspace.mel")) {
     std::string const l_s{
-        fmt::format(R"(workspace -baseWorkspace "default" -openWorkspace "{}")", l_path.generic_string())};
+        fmt::format(R"(workspace -baseWorkspace "default" -openWorkspace "{}")", in_path.generic_string())};
 
     maya_chick(MGlobal::executeCommand(d_str{l_s}));
     maya_chick(MGlobal::executeCommand(R"(workspace -saveWorkspace)"));

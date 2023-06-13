@@ -22,7 +22,11 @@
 
 #include "boost/signals2/connection.hpp"
 
+#include "gui/widgets/maya_tool.h"
+#include <filesystem>
+#include <imgui.h>
 #include <utility>
+#include <vector>
 
 namespace doodle::gui {
 
@@ -80,61 +84,51 @@ class maya_tool::impl {
   maya_tool_ns::maya_file_type_gui save_maya_type_attr{};
   maya_tool_ns::ref_attr_gui ref_attr{};
   boost::signals2::scoped_connection scoped_connection_1{}, scoped_connection_2{};
+
+  gui_cache<bool> replace_ref_file_{"替换引用"s, true};
+  gui_cache<bool> sim_file_{"解算文件"s, true};
+  gui_cache<bool> export_abc_type_{"导出abc"s, true};
+  gui_cache<bool> create_play_blast_{"创建排屏"s, true};
 };
 
-maya_tool::maya_tool()
-    : p_cloth_path(),
-      p_text(),
-      p_sim_path(),
-      p_only_sim(false),
-      p_use_all_ref(false),
-      p_upload_files(false),
-      p_sim_export_fbx(true),
-      p_sim_only_export(),
-      ptr_attr(std::make_unique<impl>()) {
-  g_reg()->ctx().emplace<maya_exe_ptr>() = std::make_shared<maya_exe>();
-  title_name_                            = std::string{name};
+maya_tool::maya_tool() : ptr_attr(std::make_unique<impl>()) {
+  if (!g_reg()->ctx().contains<maya_exe_ptr>()) g_reg()->ctx().emplace<maya_exe_ptr>() = std::make_shared<maya_exe>();
+  title_name_ = std::string{name};
   init();
 }
+
+void maya_tool::set_path(const std::vector<FSys::path>& in_path) {
+  p_sim_path = in_path | ranges::views::filter([](const FSys::path& in_handle) -> bool {
+                 auto l_ex = in_handle.extension();
+                 return l_ex == ".ma" || l_ex == ".mb";
+               }) |
+               ranges::to_vector;
+}
+
 void maya_tool::init() {
   ptr_attr->scoped_connection_1 = g_reg()->ctx().get<core_sig>().project_end_open.connect([this]() {
     p_text = g_reg()->ctx().get<project_config::base_config>().vfx_cloth_sim_path.generic_string();
   });
-  ptr_attr->scoped_connection_2 =
-      g_reg()->ctx().get<core_sig>().select_handles.connect([this](const std::vector<entt::handle>& in_list) {
-        p_sim_path = in_list | ranges::views::filter([](const entt::handle& in_handle) -> bool {
-                       return in_handle && in_handle.any_of<assets_file>();
-                     }) |
-                     ranges::views::filter([](const entt::handle& in_handle) -> bool {
-                       auto l_ex = in_handle.get<assets_file>().path_attr().extension();
-                       return l_ex == ".ma" || l_ex == ".mb";
-                     }) |
-                     ranges::views::transform([](const entt::handle& in_handle) -> FSys::path {
-                       return in_handle.get<assets_file>().get_path_normal();
-                     }) |
-                     ranges::to_vector;
-      });
-
-  p_text = g_reg()->ctx().get<project_config::base_config>().vfx_cloth_sim_path.generic_string();
+  ptr_attr->scoped_connection_2 = g_reg()->ctx().get<core_sig>().save_end.connect([this]() {
+    p_text = g_reg()->ctx().get<project_config::base_config>().vfx_cloth_sim_path.generic_string();
+  });
+  p_text                        = g_reg()->ctx().get<project_config::base_config>().vfx_cloth_sim_path.generic_string();
   g_reg()->ctx().emplace<maya_tool&>(*this);
 }
 
 bool maya_tool::render() {
-  {
-    if (dear::ListBox l_list_files{"file_list"}) {
-      for (const auto& f : p_sim_path) {
-        dear::Selectable(f.generic_string());
-      }
+  ImGui::Text("解算文件列表(将文件拖入此处)");
+  auto* l_win_main = ImGui::GetCurrentWindow();
+  if (auto l_drag = dear::DragDropTargetCustom{l_win_main->ContentRegionRect, l_win_main->ID}) {
+    if (const auto* l_data = ImGui::AcceptDragDropPayload(doodle::doodle_config::drop_imgui_id.data());
+        l_data && l_data->IsDelivery()) {
+      auto* l_list = static_cast<std::vector<FSys::path>*>(l_data->Data);
+      set_path(*l_list);
     }
-    if (auto l_drag = dear::DragDropTarget{}) {
-      if (const auto* l_data = ImGui::AcceptDragDropPayload(doodle::doodle_config::drop_imgui_id.data());
-          l_data && l_data->IsDelivery()) {
-        auto* l_list = static_cast<std::vector<FSys::path>*>(l_data->Data);
-        p_sim_path   = *l_list | ranges::views::filter([](const FSys::path& in_handle) -> bool {
-          auto l_ex = in_handle.extension();
-          return l_ex == ".ma" || l_ex == ".mb";
-        }) | ranges::to_vector;
-      }
+  }
+  if (auto l_c = dear::Child{"##mt_file_list", ImVec2{-FLT_MIN, dear::ListBox::DefaultHeight()}}) {
+    for (const auto& f : p_sim_path) {
+      dear::Selectable(f.generic_string());
     }
   }
 
@@ -142,11 +136,14 @@ bool maya_tool::render() {
 
   imgui::Checkbox("自动上传", &p_upload_files);
   dear::TreeNode{"解算设置"} && [this]() {
-    imgui::Checkbox("只解算不替换引用", &p_only_sim);
-    imgui::Checkbox("导出为fbx格式", &p_sim_export_fbx);
-    imgui::Checkbox("只导出", &p_sim_only_export);
+    imgui::Checkbox(*ptr_attr->replace_ref_file_, &ptr_attr->replace_ref_file_);
+    imgui::Checkbox(*ptr_attr->sim_file_, &ptr_attr->sim_file_);
+    imgui::Checkbox(*ptr_attr->export_abc_type_, &ptr_attr->export_abc_type_);
   };
   dear::TreeNode{"fbx导出设置"} && [&]() { imgui::Checkbox("直接加载所有引用", &p_use_all_ref); };
+  imgui::Checkbox(*ptr_attr->create_play_blast_, &ptr_attr->create_play_blast_);
+
+#if defined DOODLE_MAYA_TOOL
   dear::TreeNode{*ptr_attr->ref_attr.ref_attr} && [&]() {
     if (ImGui::Button(*ptr_attr->ref_attr.de_button_attr)) {
       ptr_attr->ref_attr.ref_attr.data.emplace_back();
@@ -164,7 +161,6 @@ bool maya_tool::render() {
       }
     }
   };
-
   dear::TreeNode{*ptr_attr->convert_maya_id_attr} && [&]() {
     dear::Combo{*ptr_attr->save_maya_type_attr.gui_name, ptr_attr->save_maya_type_attr.show_id_attr.c_str()} && [&]() {
       static auto l_list = magic_enum::enum_names<maya_tool_ns::maya_type>();
@@ -176,19 +172,20 @@ bool maya_tool::render() {
       }
     };
   };
+#endif
 
   if (imgui::Button("解算")) {
     auto l_maya = g_reg()->ctx().get<maya_exe_ptr>();
     std::for_each(p_sim_path.begin(), p_sim_path.end(), [this, l_maya](const FSys::path& in_path) {
       auto k_arg             = maya_exe_ns::qcloth_arg{};
       k_arg.file_path        = in_path;
-      k_arg.only_sim         = p_only_sim;
-      k_arg.upload_file      = p_upload_files;
-      k_arg.export_fbx       = p_sim_export_fbx;
-      k_arg.only_export      = p_sim_only_export;
       k_arg.project_         = doodle_lib::Get().ctx().get<database_info>().path_;
       k_arg.t_post           = g_reg()->ctx().get<project_config::base_config>().t_post;
       k_arg.export_anim_time = g_reg()->ctx().get<project_config::base_config>().export_anim_time;
+      if (ptr_attr->replace_ref_file_) k_arg.bitset_ |= maya_exe_ns::flags::k_replace_ref_file;
+      if (ptr_attr->sim_file_) k_arg.bitset_ |= maya_exe_ns::flags::k_sim_file;
+      if (ptr_attr->export_abc_type_) k_arg.bitset_ |= maya_exe_ns::flags::k_export_abc_type;
+      if (ptr_attr->create_play_blast_) k_arg.bitset_ |= maya_exe_ns::flags::k_create_play_blast;
       l_maya->async_run_maya(make_handle(), k_arg, [](boost::system::error_code in_code) {
         if (in_code) DOODLE_LOG_ERROR(in_code);
         DOODLE_LOG_ERROR("完成任务");
@@ -203,16 +200,16 @@ bool maya_tool::render() {
       k_arg.file_path        = i;
       k_arg.use_all_ref      = this->p_use_all_ref;
       k_arg.upload_file      = p_upload_files;
-      k_arg.t_post           = g_reg()->ctx().get<project_config::base_config>().t_post;
       k_arg.export_anim_time = g_reg()->ctx().get<project_config::base_config>().export_anim_time;
-
       k_arg.project_         = doodle_lib::Get().ctx().get<database_info>().path_;
+      if (ptr_attr->create_play_blast_) k_arg.bitset_ |= maya_exe_ns::flags::k_create_play_blast;
       l_maya->async_run_maya(make_handle(), k_arg, [](boost::system::error_code in_code) {
         if (in_code) DOODLE_LOG_ERROR(in_code);
         DOODLE_LOG_ERROR("完成任务");
       });
     });
   }
+#if defined DOODLE_MAYA_TOOL
   ImGui::SameLine();
   if (imgui::Button("引用文件替换")) {
     auto l_maya = g_reg()->ctx().get<maya_exe_ptr>();
@@ -253,7 +250,7 @@ bool maya_tool::render() {
       });
     });
   }
-
+#endif
   return open;
 }
 const std::string& maya_tool::title() const { return title_name_; }

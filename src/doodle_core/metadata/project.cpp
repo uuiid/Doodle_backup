@@ -77,21 +77,10 @@ FSys::path project::make_path(const FSys::path& in_path) const {
 }
 
 project_config::base_config::base_config()
-    : vfx_cloth_sim_path(),
-      export_group("UE4"),
+    : export_group("UE4"),
       cloth_proxy_("_cloth_proxy"),
       simple_module_proxy_("_proxy"),
-      find_icon_regex(),
-      assets_list(),
-      icon_extensions({".png"s, ".jpg"s}),
       season_count(20),
-      export_abc_arg(0b10010101),
-      maya_camera_select(
-          {std::make_pair(R"(front|persp|side|top|camera)"s, -1000), std::make_pair(R"(ep\d+_sc\d+)"s, 30),
-           std::make_pair(R"(ep\d+)"s, 10), std::make_pair(R"(sc\d+)"s, 10), std::make_pair(R"(ep_\d+_sc_\d+)"s, 10),
-           std::make_pair(R"(ep_\d+)"s, 5), std::make_pair(R"(sc_\d+)"s, 5), std::make_pair(R"(^[A-Z]+_)"s, 2),
-           std::make_pair(R"(_\d+_\d+)"s, 2)}
-      ),
       maya_camera_suffix("camera"),
       maya_out_put_abc_suffix("_output_abc") {}
 
@@ -106,17 +95,13 @@ void project_config::to_json(nlohmann::json& j, const base_config& p) {
   j["upload_path"]                       = p.upload_path;
   j["season_count"]                      = p.season_count;
 
-  j["use_rename_material"]               = p.use_rename_material;
-  j["use_merge_mesh"]                    = p.use_merge_mesh;
   j["use_divide_group_export"]           = p.use_divide_group_export;
   j["use_only_sim_cloth"]                = p.use_only_sim_cloth;
 
   j["t_post"]                            = p.t_post;
   j["export_anim_time"]                  = p.export_anim_time;
-  j["export_abc_arg"]                    = p.export_abc_arg;
 
   j["maya_camera_select"]                = p.maya_camera_select;
-  j["use_write_metadata"]                = p.use_write_metadata;
   j["abc_export_extract_reference_name"] = p.abc_export_extract_reference_name;
   j["abc_export_format_reference_name"]  = p.abc_export_format_reference_name;
   j["abc_export_extract_scene_name"]     = p.abc_export_extract_scene_name;
@@ -136,16 +121,12 @@ void project_config::from_json(const nlohmann::json& j, base_config& p) {
   if (j.contains("upload_path")) j.at("upload_path").get_to(p.upload_path);
   if (j.contains("season_count")) j.at("season_count").get_to(p.season_count);
 
-  if (j.contains("use_rename_material")) j.at("use_rename_material").get_to(p.use_rename_material);
-  if (j.contains("use_merge_mesh")) j.at("use_merge_mesh").get_to(p.use_merge_mesh);
   if (j.contains("use_divide_group_export")) j.at("use_divide_group_export").get_to(p.use_divide_group_export);
   if (j.contains("use_only_sim_cloth")) j.at("use_only_sim_cloth").get_to(p.use_only_sim_cloth);
 
   if (j.contains("t_post")) j.at("t_post").get_to(p.t_post);
   if (j.contains("export_anim_time")) j.at("export_anim_time").get_to(p.export_anim_time);
-  if (j.contains("export_abc_arg")) j.at("export_abc_arg").get_to(p.export_abc_arg);
   if (j.contains("maya_camera_select")) j.at("maya_camera_select").get_to(p.maya_camera_select);
-  if (j.contains("use_write_metadata")) j.at("use_write_metadata").get_to(p.use_write_metadata);
 
   if (j.contains("abc_export_extract_reference_name"))
     j.at("abc_export_extract_reference_name").get_to(p.abc_export_extract_reference_name);

@@ -51,6 +51,11 @@ FSys::path DOODLE_CORE_API write_tmp_file(
 );
 FSys::path DOODLE_CORE_API from_quotation_marks(const std::string& in_string);
 
+FSys::path DOODLE_CORE_API get_cache_path();
+FSys::path DOODLE_CORE_API get_cache_path(const FSys::path& in_path);
+
+bool DOODLE_CORE_API folder_is_save(const FSys::path& in_file_path);
+
 }  // namespace doodle::FSys
 
 #ifndef USE_STD_FSYS

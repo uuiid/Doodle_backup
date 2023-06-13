@@ -5,19 +5,26 @@
 #include "qcloth_shape.h"
 
 #include "doodle_core/core/core_help_impl.h"
+#include "doodle_core/logger/logger.h"
 
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/functional/factory.hpp>
 #include <boost/functional/value_factory.hpp>
 
-#include <maya_plug/data/find_duplicate_poly.h>
+#include <maya_plug/data/m_namespace.h>
 #include <maya_plug/data/maya_file_io.h>
 #include <maya_plug/data/maya_tool.h>
 #include <maya_plug/data/reference_file.h>
 #include <maya_plug/fmt/fmt_dag_path.h>
 #include <maya_plug/main/maya_plug_fwd.h>
 
+#include "data/maya_conv_str.h"
 #include "data/qcloth_shape.h"
+#include "data/sim_cover_attr.h"
 #include "entt/entity/fwd.hpp"
+#include "exception/exception.h"
+#include <fmt/core.h>
 #include <magic_enum.hpp>
 #include <maya/MAnimControl.h>
 #include <maya/MDagModifier.h>
@@ -33,6 +40,7 @@
 #include <maya/MItSelectionList.h>
 #include <maya/MNamespace.h>
 #include <maya/MPlug.h>
+#include <maya/MStatus.h>
 #include <string>
 
 namespace doodle::maya_plug {
@@ -351,6 +359,7 @@ MObject make_group(MDagModifier& in_modifier, const std::string& in_name, const 
 }  // namespace
 
 qcloth_shape::qcloth_shape() = default;
+qcloth_shape::qcloth_shape(const MObject& in_object) : obj(in_object){};
 
 std::vector<entt::handle> qcloth_shape::create_sim_cloth(const entt::handle& in_handle) {
   in_handle.all_of<qcloth_shape_n::maya_obj, qcloth_shape_n::shape_list>()
@@ -563,7 +572,7 @@ void qcloth_shape::sort_group() {
 bool qcloth_shape::chick_low_skin(const entt::handle& in_handle) {
   in_handle.any_of<qcloth_shape_n::maya_obj>() ? void() : throw_exception(doodle_error{"缺失组件"s});
   MStatus l_s{};
-  auto l_shape = get_shape(in_handle.get<qcloth_shape_n::maya_obj>().obj);
+  auto l_shape = maya_plug::get_shape(in_handle.get<qcloth_shape_n::maya_obj>().obj);
   /// 寻找高模的皮肤簇
   for (MItDependencyGraph i{l_shape, MFn::kSkinClusterFilter, MItDependencyGraph::Direction::kUpstream}; !i.isDone();
        i.next()) {
@@ -615,7 +624,7 @@ MObject qcloth_shape::get_skin_custer(const MObject& in_anim_node) {
   MStatus l_s{};
   MObject l_skin_cluster{};
   /// \brief 获得组件点上下文
-  auto l_shape = get_shape(in_anim_node);
+  auto l_shape = maya_plug::get_shape(in_anim_node);
 
   /// 寻找高模的皮肤簇
   for (MItDependencyGraph i{l_shape, MFn::kSkinClusterFilter, MItDependencyGraph::Direction::kUpstream}; !i.isDone();
@@ -641,7 +650,7 @@ MDagPath qcloth_shape::cloth_mesh() const {
   MObject l_mesh{};
   /// \brief 获得组件点上下文
   DOODLE_LOG_INFO(fmt::format("使用q布料节点 {}", get_node_full_name(obj)));
-  auto l_shape = get_shape(obj);
+  auto l_shape = maya_plug::get_shape(obj);
   auto l_plug  = get_plug(l_shape, "outputMesh");
 
   /// 寻找高模的皮肤簇
@@ -660,10 +669,10 @@ MDagPath qcloth_shape::cloth_mesh() const {
 void qcloth_shape::sim_cloth() const {
   DOODLE_CHICK(!obj.isNull(), doodle_error{"空组件"});
   MStatus k_s{};
-  MFnDependencyNode l_node{obj, &k_s};
   auto k_plug = get_plug(obj, "outputMesh");
   /// \brief 使用这种方式评估网格
   k_plug.asMObject(&k_s).isNull();
+  maya_chick(k_s);
 }
 void qcloth_shape::add_field(const entt::handle& in_handle) const {
   auto l_f = in_handle.get<reference_file>().get_field_dag();
@@ -692,29 +701,47 @@ void qcloth_shape::add_field(const entt::handle& in_handle) const {
 void qcloth_shape::add_collision(const entt::handle& in_handle) const {
   MStatus k_s{};
   auto l_item = in_handle.get<reference_file>().get_collision_model();
-  k_s         = l_item.add(get_solver(), true);
-  DOODLE_MAYA_CHICK(k_s);
+  if (l_item.isEmpty()) return;
+
+  k_s = l_item.add(get_solver(), true);
+  maya_chick(k_s);
   k_s = MGlobal::setActiveSelectionList(l_item);
-  DOODLE_MAYA_CHICK(k_s);
+  maya_chick(k_s);
   k_s = MGlobal::executeCommand(d_str{"qlCreateCollider;"});
-  DOODLE_MAYA_CHICK(k_s);
+  maya_chick(k_s);
 }
 void qcloth_shape::rest(const entt::handle& in_handle) const {
-  auto l_rest_obj = in_handle.get<find_duplicate_poly>()[obj];
-  if (l_rest_obj.isNull()) return;
-
-  DOODLE_LOG_INFO("开始更新解算的布料 {} 初始化姿势 ", get_node_full_name(obj));
   MSelectionList l_list{};
+  auto l_simple_module_proxy_ = g_reg()->ctx().get<project_config::base_config>().simple_module_proxy_;
+  auto l_proxy_               = g_reg()->ctx().get<project_config::base_config>().cloth_proxy_;
   maya_chick(l_list.add(obj));
-  maya_chick(l_list.add(l_rest_obj));
+
+  auto k_plug = get_plug(obj, "outputMesh");
+  MStatus l_s{};
+  MItDependencyGraph l_it{
+      k_plug,
+      MFn::kMesh,
+      MItDependencyGraph::Direction::kDownstream,
+      MItDependencyGraph::kDepthFirst,
+      MItDependencyGraph::kNodeLevel,
+      &l_s};
+  maya_chick(l_s);
+
+  auto l_path = get_transform(l_it.currentItem());
+  auto l_name = get_node_name(l_path);
+  boost::replace_last(l_name, l_proxy_, l_simple_module_proxy_);
+
+  DOODLE_LOG_INFO("开始寻找布料对应的初识姿势 {} -> {}", get_node_name(l_path), l_name);
+  maya_chick(l_list.add(conv::to_ms(l_name)));
   maya_chick(MGlobal::setActiveSelectionList(l_list));
   maya_chick(MGlobal::executeCommand(d_str{"qlUpdateInitialPose;"}));
 }
 MObject qcloth_shape::get_solver() const {
   MStatus l_status{};
   MObject l_object{};
+  auto l_root = obj;
   for (MItDependencyGraph l_it_dependency_graph{
-           l_object, MFn::kPluginLocatorNode, MItDependencyGraph::kUpstream, MItDependencyGraph::kDepthFirst,
+           l_root, MFn::kPluginLocatorNode, MItDependencyGraph::kUpstream, MItDependencyGraph::kDepthFirst,
            MItDependencyGraph::kNodeLevel, nullptr};
        !l_it_dependency_graph.isDone(); l_it_dependency_graph.next()) {
     l_object = l_it_dependency_graph.currentItem(&l_status);
@@ -726,12 +753,16 @@ MObject qcloth_shape::get_solver() const {
   DOODLE_CHICK(!l_object.isNull(), doodle_error{"没有找到qlSolver解算核心"s});
   return l_object;
 }
-std::string qcloth_shape::get_namespace() const {
-  return m_namespace::strip_namespace_from_name(get_node_full_name(obj));
-};
+
+MDagPath qcloth_shape::get_shape() const {
+  DOODLE_LOG_INFO(fmt::format("使用q布料节点 {}", get_node_full_name(obj)));
+  return maya_plug::get_dag_path(obj);
+}
+
+std::string qcloth_shape::get_namespace() const { return m_namespace::get_namespace_from_name(get_node_name(obj)); };
 
 void qcloth_shape::cover_cloth_attr(const entt::handle& in_handle) const {
-  /// todo: 未作处理
+  sim_cover_attr::cover_qcloth_attr(in_handle);
 }
 
 }  // namespace doodle::maya_plug

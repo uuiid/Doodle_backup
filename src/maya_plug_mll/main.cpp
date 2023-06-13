@@ -9,19 +9,14 @@
 #include <maya_plug/logger/maya_logger_info.h>
 #include <maya_plug/maya_comm/add_entt.h>
 #include <maya_plug/maya_comm/afterimage_comm.h>
-#include <maya_plug/maya_comm/cam_comm.h>
 #include <maya_plug/maya_comm/clear_scene_comm.h>
 #include <maya_plug/maya_comm/create_qcloth_assets.h>
 #include <maya_plug/maya_comm/dem_bones_add_weight.h>
 #include <maya_plug/maya_comm/dem_bones_comm.h>
-#include <maya_plug/maya_comm/file_comm.h>
 #include <maya_plug/maya_comm/find_duplicate_poly_comm.h>
 #include <maya_plug/maya_comm/open_doodle_main.h>
+#include <maya_plug/maya_comm/ref_file_export.h>
 #include <maya_plug/maya_comm/reference_comm.h>
-#include <maya_plug/maya_comm/replace_rig_file_command.h>
-#include <maya_plug/maya_comm/sequence_to_blend_shape_comm.h>
-#include <maya_plug/maya_comm/sequence_to_blend_shape_ref_comm.h>
-#include <maya_plug/maya_comm/upload_files_command.h>
 #include <maya_plug/maya_render/hud_render_node.h>
 
 #include <maya/MFnPlugin.h>
@@ -184,11 +179,6 @@ MStatus initializePlugin(MObject obj) {
       doodle::maya_plug::doodle_info_node, doodle::maya_plug::doodle_info_node_draw_override>();
   CHECK_MSTATUS(status);
 
-  /// 导出相机命令注册
-  status = maya_reg->register_command<::doodle::maya_plug::export_camera_command>(k_plugin);
-  CHECK_MSTATUS(status);
-  /// 保存文件命令
-  status = maya_reg->register_command<::doodle::maya_plug::comm_file_save>(k_plugin);
   CHECK_MSTATUS(status);
   /// 添加残像命令
   status = maya_reg->register_command<::doodle::maya_plug::afterimage_comm>(k_plugin);
@@ -203,23 +193,15 @@ MStatus initializePlugin(MObject obj) {
   /// 添加设置缓存命令
   status = maya_reg->register_command<::doodle::maya_plug::set_cloth_cache_path>(k_plugin);
   CHECK_MSTATUS(status);
-  /// 添加替换文件命令
-  status = maya_reg->register_command<::doodle::maya_plug::replace_rig_file_command>(k_plugin);
+  /// 添加导出命令
+  status = maya_reg->register_command<::doodle::maya_plug::ref_file_export>(k_plugin);
   CHECK_MSTATUS(status);
-  /// 添加上传文件命令
-  status = maya_reg->register_command<::doodle::maya_plug::upload_files_command>(k_plugin);
-  CHECK_MSTATUS(status);
+
   /// 添加解算骨骼命令
   status = maya_reg->register_command<::doodle::maya_plug::dem_bones_comm>(k_plugin);
   CHECK_MSTATUS(status);
   /// 添加解算骨骼命令
   status = maya_reg->register_command<::doodle::maya_plug::dem_bones_add_weight>(k_plugin);
-  CHECK_MSTATUS(status);
-  /// 添加变形骨骼命令
-  status = maya_reg->register_command<::doodle::maya_plug::sequence_to_blend_shape_comm>(k_plugin);
-  CHECK_MSTATUS(status);
-  /// 添加变形骨骼命令2
-  status = maya_reg->register_command<::doodle::maya_plug::sequence_to_blend_shape_ref_comm>(k_plugin);
   CHECK_MSTATUS(status);
 
   /// 添加创建布料命令

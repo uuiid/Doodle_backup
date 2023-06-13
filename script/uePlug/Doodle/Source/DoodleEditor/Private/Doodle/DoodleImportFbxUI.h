@@ -56,6 +56,7 @@ class UDoodleFbxImport_1 : public UDoodleBaseImportData {
   TSet<FString> FbxNodeNames;
   /// @brief 寻找到的骨骼
   USkeleton* SkinObj;
+  bool OnlyAnim{true};
   void GenPathPrefix(const FString& In_Path_Prefix, const FString& In_Path_Suffix) override;
   void ImportFile() override;
 };
@@ -100,12 +101,8 @@ class SDoodleImportFbxUI : public SCompoundWidget, FGCObject {
   SLATE_BEGIN_ARGS(SDoodleImportFbxUI) {}
   SLATE_END_ARGS()
 
-#if (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION == 1)
   using UDoodleBaseImportDataPtrType = TObjectPtr<UDoodleBaseImportData>;
-#elif (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION == 0) || \
-    (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION == 27)
-  using UDoodleBaseImportDataPtrType = UDoodleBaseImportData*;
-#endif
+
   // 这里是内容创建函数
   void Construct(const FArguments& Arg);
 
@@ -151,6 +148,8 @@ class SDoodleImportFbxUI : public SCompoundWidget, FGCObject {
    * @param In_Path_Prefix 传入的路径
    */
   void GenPathPrefix(const FString& In_Path_Prefix, const FString& In_Path_Suffix);
+  // 检查fbx是否只导入动画
+  void SetFbxOnlyAnim();
 
   /**
    * @brief 提取所有的标签

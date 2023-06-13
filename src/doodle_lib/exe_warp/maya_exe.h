@@ -10,6 +10,9 @@
 #include <boost/asio/thread_pool.hpp>
 
 #include <bitset>
+#include <filesystem>
+#include <nlohmann/json_fwd.hpp>
+#include <string_view>
 
 namespace doodle::maya_exe_ns {
 namespace flags {
@@ -49,26 +52,14 @@ class arg {
 
 class DOODLELIB_API qcloth_arg : public maya_exe_ns::arg {
  public:
-  bool only_sim;
-  bool upload_file;
-  bool export_fbx;
-  bool only_export;
-
+  constexpr static std::string_view k_name{"cloth_sim_config"};
   [[nodiscard]] std::string to_str() const;
 
   friend void to_json(nlohmann::json &nlohmann_json_j, const qcloth_arg &nlohmann_json_t) {
     to_json(nlohmann_json_j, dynamic_cast<const arg &>(nlohmann_json_t));
-    nlohmann_json_j["only_sim"]    = nlohmann_json_t.only_sim;
-    nlohmann_json_j["upload_file"] = nlohmann_json_t.upload_file;
-    nlohmann_json_j["export_fbx"]  = nlohmann_json_t.export_fbx;
-    nlohmann_json_j["only_export"] = nlohmann_json_t.only_export;
   };
   friend void from_json(const nlohmann::json &nlohmann_json_j, qcloth_arg &nlohmann_json_t) {
     from_json(nlohmann_json_j, dynamic_cast<arg &>(nlohmann_json_t));
-    nlohmann_json_j["only_sim"].get_to(nlohmann_json_t.only_sim);
-    nlohmann_json_j["upload_file"].get_to(nlohmann_json_t.upload_file);
-    nlohmann_json_j["export_fbx"].get_to(nlohmann_json_t.export_fbx);
-    nlohmann_json_j["only_export"].get_to(nlohmann_json_t.only_export);
   };
 };
 
@@ -76,6 +67,7 @@ class DOODLELIB_API export_fbx_arg : public maya_exe_ns::arg {
  public:
   bool use_all_ref;
   bool upload_file;
+  constexpr static std::string_view k_name{"export_fbx_config"};
 
   [[nodiscard]] std::string to_str() const;
 
@@ -116,12 +108,12 @@ namespace doodle {
 class DOODLELIB_API maya_exe {
   class impl;
   std::unique_ptr<impl> p_i;
-  static void add_maya_fun_tool();
+
   void notify_run();
   using call_fun_type = std::function<void(boost::system::error_code)>;
   void queue_up(
-      const entt::handle &in_msg, const std::string &in_string, const std::shared_ptr<call_fun_type> &in_call_fun,
-      const FSys::path &in_run_path
+      const entt::handle &in_msg, const std::string_view &in_key, const nlohmann::json &in_string,
+      const std::shared_ptr<call_fun_type> &in_call_fun, const FSys::path &in_run_path
   );
 
  public:
@@ -129,15 +121,20 @@ class DOODLELIB_API maya_exe {
 
   virtual ~maya_exe();
 
+  [[nodiscard]] FSys::path find_maya_path() const;
+  void install_maya_exe();
+
   template <typename CompletionHandler, typename Arg_t>
   auto async_run_maya(const entt::handle &in_handle, const Arg_t &in_arg, CompletionHandler &&in_completion) {
     auto l_msg_ref = in_handle.get_or_emplace<process_message>();
     l_msg_ref.set_name(in_arg.file_path.filename().generic_string());
     return boost::asio::async_initiate<CompletionHandler, void(boost::system::error_code)>(
         [this, l_msg_ref, &in_arg, in_handle](auto &&in_completion_handler) {
+          nlohmann::json l_json{};
+          l_json = in_arg;
           auto l_fun =
               std::make_shared<call_fun_type>(std::forward<decltype(in_completion_handler)>(in_completion_handler));
-          this->queue_up(in_handle, in_arg.to_str(), l_fun, in_arg.file_path);
+          this->queue_up(in_handle, Arg_t::k_name, l_json, l_fun, in_arg.file_path);
         },
         in_completion
     );
