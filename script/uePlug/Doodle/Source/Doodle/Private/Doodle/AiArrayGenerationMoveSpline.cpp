@@ -97,7 +97,8 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
   for (auto&& i : Points) {
     auto L_Loc                      = i.GetLocation();
     // L_Loc.Z += 70;
-    ADoodleAiSplineCrowd* L_Actor   = GetWorld()->SpawnActor<ADoodleAiSplineCrowd>(L_Loc, i.GetRotation().Rotator(), L_ActorSpawnParameters);
+    ADoodleAiSplineCrowd* L_Actor =
+        GetWorld()->SpawnActor<ADoodleAiSplineCrowd>(L_Loc, i.GetRotation().Rotator(), L_ActorSpawnParameters);
     UDoodleAiMoveToComponent* L_Com = L_Actor->GetDoodleMoveToComponent();
     if (L_Com) {
       L_Com->RandomRadius = RandomRadius_Move;
@@ -107,12 +108,12 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
     L_tran.SetRotation(GetActorQuat());
     L_Actor->SplineMoveToComponent->ReplaceSplineCurve(TargetSpline, L_tran);
 
-    TObjectPtr L_Skin = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
-    auto L_Array      = L_Map.Find(L_Skin->GetSkeleton());
+    USkeletalMesh* L_Skin = SkinAssets[RandomStream_Skin.RandRange(0, L_Max_Skin)];
+    auto L_Array          = L_Map.Find(L_Skin->GetSkeleton());
     if (!L_Array) continue;
-    if (L_Array->IsEmpty()) continue;
-    TObjectPtr<UAnimationAsset> L_Anim = (*L_Array)[RandomStream_Anim.RandRange(0, L_Array->Num() - 1)];
-    USkeletalMeshComponent* L_Sk_Com   = L_Actor->GetMesh();
+    if (L_Array->Num() != 0) continue;
+    UAnimationAsset* L_Anim          = (*L_Array)[RandomStream_Anim.RandRange(0, L_Array->Num() - 1)];
+    USkeletalMeshComponent* L_Sk_Com = L_Actor->GetMesh();
     FVector::ZAxisVector;
     L_Sk_Com->SetRelativeLocationAndRotation({0.f, 0.f, -85.f}, FQuat{FVector::ZAxisVector, -90.f});
     L_Sk_Com->SetSkeletalMesh(L_Skin);
@@ -120,9 +121,10 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
     // L_Sk_Com->LightingChannels = LightingChannels;
     L_Sk_Com->SetLightingChannels(LightingChannels.bChannel0, LightingChannels.bChannel1, LightingChannels.bChannel2);
 
-    UCharacterMovementComponent* CharacterMovementComponent = Cast<UCharacterMovementComponent>(L_Actor->GetMovementComponent());
+    UCharacterMovementComponent* CharacterMovementComponent =
+        Cast<UCharacterMovementComponent>(L_Actor->GetMovementComponent());
     if (CharacterMovementComponent) {
-      CharacterMovementComponent->MaxAcceleration              = MaxAcceleration;
+      CharacterMovementComponent->MaxAcceleration = MaxAcceleration;
       CharacterMovementComponent->MaxWalkSpeed                 = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
       CharacterMovementComponent->GroundFriction               = 0.2f;
       CharacterMovementComponent->RotationRate                 = {0.0f, 180.0f, 0.0f};

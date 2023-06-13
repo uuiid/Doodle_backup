@@ -1000,7 +1000,7 @@ void SDoodleImportFbxUI::AddFile(const FString& In_File) {
       L_ptr->ImportPath                                      = In_File;
       L_File                                                 = ListImportData.Emplace_GetRef(L_ptr);
     } else {
-      TObjectPtr<UDoodleFbxImport_1> L_ptr = NewObject<UDoodleFbxImport_1>();
+      UDoodleFbxImport_1* L_ptr = NewObject<UDoodleFbxImport_1>();
       L_ptr->ImportPath                    = In_File;
       L_Task_Scoped1.EnterProgressFrame(1.0f, LOCTEXT("DoingSlowWork3", "寻找匹配骨骼"));
 
