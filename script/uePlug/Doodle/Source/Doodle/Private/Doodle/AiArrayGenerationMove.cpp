@@ -88,7 +88,7 @@ bool ADoodleAiArrayGenerationMove::ShouldTickIfViewportsOnly() const {
 }
 
 void ADoodleAiArrayGenerationMove::BeginPlay() {
-  if (AnimAssets.Num() != 0 || SkinAssets.Num() != 0) return;
+  if (AnimAssets.Num() == 0 || SkinAssets.Num() == 0) return;
 
   int32 L_Max_Skin = FMath::Max(0, SkinAssets.Num() - 1);
   TMap<USkeleton*, TArray<UAnimationAsset*>> L_Map{};

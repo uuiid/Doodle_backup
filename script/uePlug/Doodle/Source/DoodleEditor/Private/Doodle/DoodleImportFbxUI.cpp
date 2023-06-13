@@ -1146,7 +1146,7 @@ bool SDoodleImportFbxUI::IsCamera(UnFbx::FFbxImporter* InFbx) {
   TArray<fbxsdk::FbxCamera*> L_Cameras{};
   MovieSceneToolHelpers::GetCameras(InFbx->Scene->GetRootNode(), L_Cameras);
 
-  return !(L_Cameras.Num() != 0);
+  return L_Cameras.Num() != 0;
 }
 
 void SDoodleImportFbxUI::FindSK() {
