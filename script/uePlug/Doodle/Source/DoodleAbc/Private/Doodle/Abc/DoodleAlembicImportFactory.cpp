@@ -19,7 +19,7 @@
 #include "GeometryCache.h"
 #include "HAL/FileManager.h"
 #include "ImportUtils/StaticMeshImportUtils.h"
-#include "Interfaces/IMainFrameModule.h"
+// #include "Interfaces/IMainFrameModule.h"
 #include "Math/UnrealMathUtility.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 

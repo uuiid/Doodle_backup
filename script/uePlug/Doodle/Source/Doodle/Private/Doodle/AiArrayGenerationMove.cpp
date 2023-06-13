@@ -1,17 +1,18 @@
 #include "Doodle/AiArrayGenerationMove.h"
 
 #include "AI/NavigationSystemBase.h"
-#include "Components/SplineComponent.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "NavigationSystem.h"
-#include "Components/InstancedStaticMeshComponent.h"
-#include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimSingleNodeInstance.h"
-#include "GameFramework/CharacterMovementComponent.h"  //角色移动组件
+#include "Animation/SkeletalMeshActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SplineComponent.h"
 #include "Doodle/DoodleEigenHelper.h"
-#include "DoodleAiMoveToComponent.h"
-
 #include "DoodleAiCrowd.h"
+#include "DoodleAiMoveToComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"  //角色移动组件
+#include "Kismet/KismetSystemLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NavigationSystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 ADoodleAiArrayGenerationMove::ADoodleAiArrayGenerationMove() {
   PrimaryActorTick.bCanEverTick = true;
@@ -133,8 +134,8 @@ void ADoodleAiArrayGenerationMove::BeginPlay() {
     if (CharacterMovementComponent) {
       CharacterMovementComponent->MaxAcceleration = MaxAcceleration;
       CharacterMovementComponent->MaxWalkSpeed    = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
-      CharacterMovementComponent->GroundFriction               = 0.2f;
-      CharacterMovementComponent->RotationRate                 = {0.0f, 180.0f, 0.0f};
+      CharacterMovementComponent->GroundFriction  = 0.2f;
+      CharacterMovementComponent->RotationRate    = {0.0f, 180.0f, 0.0f};
       CharacterMovementComponent->bOrientRotationToMovement    = true;
       CharacterMovementComponent->bUseRVOAvoidance             = true;
       CharacterMovementComponent->AvoidanceConsiderationRadius = 100.0f;

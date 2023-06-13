@@ -1,19 +1,20 @@
 #include "Doodle/AiArrayGenerationMoveSpline.h"
 
 #include "AI/NavigationSystemBase.h"
-#include "Components/SplineComponent.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "NavigationSystem.h"
-#include "Components/InstancedStaticMeshComponent.h"
-#include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimSingleNodeInstance.h"
-#include "GameFramework/CharacterMovementComponent.h"  //角色移动组件
+#include "Animation/SkeletalMeshActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SplineComponent.h"
 #include "Doodle/DoodleEigenHelper.h"
-#include "DoodleAiMoveToComponent.h"
-#include "DoodleAiSplineMoveToCom.h"
-#include "DoodleAiSplineCrowd.h"
-
 #include "DoodleAiCrowd.h"
+#include "DoodleAiMoveToComponent.h"
+#include "DoodleAiSplineCrowd.h"
+#include "DoodleAiSplineMoveToCom.h"
+#include "GameFramework/CharacterMovementComponent.h"  //角色移动组件
+#include "Kismet/KismetSystemLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NavigationSystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 ADoodleAiArrayGenerationMoveSpline::ADoodleAiArrayGenerationMoveSpline() {
   PrimaryActorTick.bCanEverTick = true;

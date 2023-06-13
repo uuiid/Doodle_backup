@@ -1,16 +1,16 @@
 #include "Doodle/AiArrayGeneration.h"
 
 #include "AI/NavigationSystemBase.h"
-#include "Components/SplineComponent.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "NavigationSystem.h"
-#include "Components/InstancedStaticMeshComponent.h"
-#include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimSingleNodeInstance.h"
-#include "Materials/Material.h"
-
+#include "Animation/SkeletalMeshActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SplineComponent.h"
 #include "Doodle/DoodleEigenHelper.h"
-
+#include "Kismet/KismetSystemLibrary.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NavigationSystem.h"
+#include "UObject/ConstructorHelpers.h"
 ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   PrimaryActorTick.bCanEverTick = true;
   SplineComponent               = CreateDefaultSubobject<USplineComponent>(TEXT("SplineComponent"));
