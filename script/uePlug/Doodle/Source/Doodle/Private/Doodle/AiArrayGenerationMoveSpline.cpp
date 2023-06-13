@@ -35,9 +35,7 @@ ADoodleAiArrayGenerationMoveSpline::ADoodleAiArrayGenerationMoveSpline() {
   Row                          = 10;
   Column                       = 10;
 
-  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(TEXT("/ControlRig/Controls/ControlRig_Sphere_3mm.ControlRig_Sphere_3mm"));
-
-  TargetSpline = CreateDefaultSubobject<USplineComponent>(TEXT("SplineComponentPath"));
+  TargetSpline                 = CreateDefaultSubobject<USplineComponent>(TEXT("SplineComponentPath"));
   TargetSpline->SetupAttachment(RootComponent);
 #if WITH_EDITOR
   TargetSpline->SetIsVisualizationComponent(true);
@@ -126,8 +124,8 @@ void ADoodleAiArrayGenerationMoveSpline::BeginPlay() {
     if (CharacterMovementComponent) {
       CharacterMovementComponent->MaxAcceleration = MaxAcceleration;
       CharacterMovementComponent->MaxWalkSpeed    = RandomStream_Anim.RandRange(RandomAnimSpeed.X, RandomAnimSpeed.Y);
-      CharacterMovementComponent->GroundFriction               = 0.2f;
-      CharacterMovementComponent->RotationRate                 = {0.0f, 180.0f, 0.0f};
+      CharacterMovementComponent->GroundFriction  = 0.2f;
+      CharacterMovementComponent->RotationRate    = {0.0f, 180.0f, 0.0f};
       CharacterMovementComponent->bOrientRotationToMovement    = true;
       CharacterMovementComponent->bUseRVOAvoidance             = true;
       CharacterMovementComponent->AvoidanceConsiderationRadius = 100.0f;

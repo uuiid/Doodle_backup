@@ -35,7 +35,9 @@ ADoodleAiArrayGeneration::ADoodleAiArrayGeneration() {
   SceneComponentTarget->SetupAttachment(RootComponent);
   SceneComponentTarget->SetRelativeLocation(FVector{200.0, 0.0, 0.0});
 
-  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(TEXT("/ControlRig/Controls/ControlRig_Sphere_3mm.ControlRig_Sphere_3mm"));
+  static ConstructorHelpers::FObjectFinder<UStaticMesh> CraneBaseMesh(
+      TEXT("/Engine/VREditor/BasicMeshes/SM_Cube_01.SM_Cube_01")
+  );
 
   Target = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
   Target->SetupAttachment(SceneComponentTarget);
