@@ -14,6 +14,7 @@
 #include <boost/hana/ext/std.hpp>
 
 #include <core/core_set.h>
+#include <tuple>
 
 namespace doodle {
 
@@ -65,7 +66,10 @@ std::uint64_t database::get_id() const { return p_id; }
 
 bool database::is_install() const { return p_id > 0; }
 
-bool database::operator==(const database &in_rhs) const { return p_uuid_ == in_rhs.p_uuid_; }
+bool database::operator==(const database &in_rhs) const {
+  return std::tie(p_uuid_, p_id) == std::tie(in_rhs.p_uuid_, in_rhs.p_id);
+}
+bool database::operator<(const database &in_rhs) const { return p_id < in_rhs.p_id; }
 bool database::operator==(const boost::uuids::uuid &in_rhs) const { return p_uuid_ == in_rhs; }
 bool database::operator==(const database_ns::ref_data &in_rhs) const { return p_uuid_ == in_rhs.uuid; }
 
@@ -83,19 +87,6 @@ entt::handle database::find_by_uuid(const boost::uuids::uuid &in) {
 }
 entt::handle database::find_by_uuid() const { return find_by_uuid(uuid()); }
 
-void database::fun_delete_::operator()(const entt::handle &in) const {
-  if (in) {
-    in.remove<data_status_save>();
-    in.get_or_emplace<data_status_delete>();
-  } else
-    DOODLE_LOG_WARN("损坏的实体 {}", in.entity());
-}
-void database::fun_save_::operator()(const entt::handle &in) const {
-  if (in) {
-    in.get_or_emplace<data_status_save>();
-  } else
-    DOODLE_LOG_WARN("损坏的实体 {}", in.entity());
-}
 void to_json(nlohmann::json &j, const database &p) {
   j["uuid"] = p.p_uuid_;
   j["id"]   = p.p_id;

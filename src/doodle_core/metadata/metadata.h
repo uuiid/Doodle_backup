@@ -55,7 +55,10 @@ class DOODLE_CORE_API ref_data {
 void DOODLE_CORE_API to_json(nlohmann::json &j, const database &p);
 void DOODLE_CORE_API from_json(const nlohmann::json &j, database &p);
 
-class DOODLE_CORE_API database : boost::equality_comparable<database>,
+/**
+ * 这个类可以按照id排序
+ */
+class DOODLE_CORE_API database : boost::totally_ordered<database>,
                                  boost::equality_comparable<boost::uuids::uuid>,
                                  boost::equality_comparable<database_ns::ref_data> {
   template <typename T>
@@ -94,6 +97,7 @@ class DOODLE_CORE_API database : boost::equality_comparable<database>,
   std::uint64_t get_id() const;
 
   bool operator==(const database &in_rhs) const;
+  bool operator<(const database &in_rhs) const;
   bool operator==(const boost::uuids::uuid &in_rhs) const;
   bool operator==(const ref_data &in_rhs) const;
 
@@ -105,20 +109,6 @@ class DOODLE_CORE_API database : boost::equality_comparable<database>,
     return find_by_uuid(boost::lexical_cast<boost::uuids::uuid>(in));
   };
   [[nodiscard]] entt::handle find_by_uuid() const;
-
-  class DOODLE_CORE_API fun_save_ {
-   public:
-    constexpr fun_save_() = default;
-    void operator()(const entt::handle &in) const;
-  };
-  class DOODLE_CORE_API fun_delete_ {
-   public:
-    constexpr fun_delete_() = default;
-    void operator()(const entt::handle &in) const;
-  };
-
-  constexpr const static fun_save_ save{};
-  constexpr const static fun_delete_ delete_{};
 };
 
 namespace database_ns {

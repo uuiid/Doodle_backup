@@ -64,8 +64,8 @@ class all_user_view_widget::impl {
     rules_attr = in_rules;
     select_user.replace<business::rules>(rules_attr);
   }
-  void delete_user_fun(const entt::handle& in_user) {
-    database::delete_(in_user);
+  void delete_user_fun(entt::handle& in_user) {
+    in_user.destroy();
 
     boost::asio::post(g_io_context(), [=]() {
       user_name_list |=

@@ -9,9 +9,8 @@
 #include <doodle_core/core/init_register.h>
 #include <doodle_core/metadata/project.h>
 
+#include <doodle_app/gui/base/ref_base.h>
 #include <doodle_app/lib_warp/imgui_warp.h>
-
-#include <gui/widgets/database_edit.h>
 
 namespace doodle::gui {
 
