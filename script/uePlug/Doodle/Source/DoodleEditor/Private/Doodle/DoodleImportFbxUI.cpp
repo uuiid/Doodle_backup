@@ -513,7 +513,7 @@ void UDoodleFbxImport_1::ImportFile() {
   LFilter.bRecursivePaths          = true;
   LFilter.bRecursiveClasses        = true;
   LFilter.PackagePaths.Add(FName{ImportPathDir});
-  LFilter.ClassNames.Add(FName{USkeleton::StaticClass()->GetName()});
+  LFilter.ClassNames.Add(FName{UAnimSequence::StaticClass()->GetName()});
 
   IAssetRegistry::Get()->EnumerateAssets(LFilter, [this](const FAssetData& InAss) -> bool {
     UAnimSequence* L_Anim = Cast<UAnimSequence>(InAss.GetAsset());
